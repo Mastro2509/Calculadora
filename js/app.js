@@ -60,22 +60,40 @@ document.addEventListener('DOMContentLoaded', () => {
         btnGuardar.disabled = false;
     });
 
-    // 6. Evento para el botón "Guardar Registro" (Preparación para BD)
+    // 6. Evento para el botón "Guardar Registro" (Conectado a PHP)
     btnGuardar.addEventListener('click', () => {
         if (!estudianteActual) {
             alert("Primero debes calcular el promedio antes de guardar.");
             return;
         }
 
-        // Aquí enviaremos los datos al backend (PHP, Node, Java, etc.)
-        console.log("Datos listos para enviar a la Base de Datos:", estudianteActual);
-        
-        alert(`¡Registro de ${estudianteActual.nombre} preparado para guardar!`);
-        
-        // Limpiar el formulario para un nuevo registro
-        formNotas.reset();
-        areaResultados.style.display = 'none';
-        btnGuardar.disabled = true;
-        estudianteActual = null;
+        // Configurar la petición al backend
+        fetch('backend/guardar.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(estudianteActual)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(`¡Éxito! ${data.mensaje}`);
+                
+                // Limpiar el formulario para un nuevo registro
+                formNotas.reset();
+                areaResultados.style.display = 'none';
+                btnGuardar.disabled = true;
+                estudianteActual = null;
+                
+                // Aquí llamaremos a la función para actualizar la tabla (Consultar)
+            } else {
+                alert(`Hubo un problema: ${data.mensaje}`);
+            }
+        })
+        .catch(error => {
+            console.error("Error en la petición:", error);
+            alert("Error al intentar conectar con el servidor.");
+        });
     });
 });
