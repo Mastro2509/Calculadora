@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Variable global para almacenar temporalmente el estudiante actual
     let estudianteActual = null;
+    let idEstudianteEnEdicion = null; // null significa que estamos creando uno nuevo
 
     // 2. Evento para el botón "Calcular Promedio"
     btnCalcular.addEventListener('click', () => {
@@ -67,8 +68,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Configurar la petición al backend
-        fetch('backend/guardar.php', {
+        // 1. Determinar a qué archivo PHP enviamos la petición
+        const urlPeticion = idEstudianteEnEdicion ? 'backend/actualizar.php' : 'backend/guardar.php';
+        
+        // 2. Si estamos editando, le agregamos el ID al objeto antes de enviarlo
+        if (idEstudianteEnEdicion) {
+            estudianteActual.id = idEstudianteEnEdicion;
+        }
+
+        // Configurar la petición al backend con la URL dinámica
+        fetch(urlPeticion, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -80,13 +89,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.status === 'success') {
                 alert(`¡Éxito! ${data.mensaje}`);
                 
-                // Limpiar el formulario para un nuevo registro
+                // Limpiar el formulario
                 formNotas.reset();
                 areaResultados.style.display = 'none';
                 btnGuardar.disabled = true;
                 estudianteActual = null;
                 
-                // Aquí llamaremos a la función para actualizar la tabla (Consultar)
+                // 3. Resetear el modo de edición para que el próximo sea uno nuevo
+                idEstudianteEnEdicion = null;
+                btnGuardar.textContent = "Guardar Registro"; // O el texto original que tenía tu botón
+                
+                // 4. Recargar la tabla automáticamente
+                cargarEstudiantes(); 
             } else {
                 alert(`Hubo un problema: ${data.mensaje}`);
             }
@@ -119,8 +133,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${estudiante.promedio}</td>
                         <td>${estudiante.resultado_Cualitativo}</td>
                         <td>
-                            <button onclick="prepararEdicion(${estudiante.id})">Modificar</button>
-                            <button onclick="eliminarEstudiante(${estudiante.id})">Eliminar</button>
+                            <button onclick="prepararEdicion(${estudiante.idEstudiante}, '${estudiante.nombre_Estudiante}', ${estudiante.nota_Uno}, ${estudiante.nota_Dos}, ${estudiante.nota_Tres}, ${estudiante.nota_Cuatro})">Modificar</button>
+                            <button onclick="eliminarEstudiante(${estudiante.idEstudiante})">Eliminar</button>
                         </td>
                     `;
                     tbody.appendChild(fila);
@@ -134,4 +148,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Llamar a la función apenas cargue el script para mostrar los datos existentes
     cargarEstudiantes();
+
+    // Función para eliminar un estudiante
+    window.eliminarEstudiante = function(id) {
+        if (confirm("¿Estás seguro de que deseas eliminar este estudiante? Esta acción no se puede deshacer.")) {
+            fetch('backend/eliminar.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ id: id }) 
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(data.mensaje);
+                    cargarEstudiantes(); // Recargar la tabla automáticamente
+                } else {
+                    alert("Error: " + data.mensaje);
+                }
+            })
+            .catch(error => console.error("Error:", error));
+        }
+    };
+
+    // Función para cargar los datos en el formulario
+    window.prepararEdicion = function(id, nombre, nota1, nota2, nota3, nota4) {
+        document.getElementById('nombre').value = nombre;
+        document.getElementById('nota1').value = nota1;
+        document.getElementById('nota2').value = nota2;
+        document.getElementById('nota3').value = nota3;
+        document.getElementById('nota4').value = nota4;
+        
+        idEstudianteEnEdicion = id;
+        
+        // Suponiendo que tu botón tiene el ID 'btnGuardar' o la variable btnGuardar
+        btnGuardar.textContent = "Actualizar Registro";
+        btnGuardar.disabled = false; 
+    };
 });

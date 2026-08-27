@@ -62,22 +62,23 @@
         <section class="card">
             <h2>Registros Almacenados</h2>
             <div class="table-responsive">
-                <table id="tabla-registros">
+                <!-- En tu index.html, donde quieras mostrar los registros -->
+                <table border="1">
                     <thead>
                         <tr>
-                            <th>ID</th>
                             <th>Nombre</th>
                             <th>Nota 1</th>
                             <th>Nota 2</th>
                             <th>Nota 3</th>
                             <th>Nota 4</th>
                             <th>Promedio</th>
-                            <th>Resultado Cualitativo</th>
+                            <th>Resultado</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <!-- Los registros se insertarán aquí dinámicamente con JS -->
+                    <!-- ¡Este ID es la clave para que JS encuentre dónde pintar los datos! -->
+                    <tbody id="tabla-estudiantes">
+                        <!-- JS inyectará las filas (<tr>) aquí dinámicamente -->
                     </tbody>
                 </table>
             </div>
