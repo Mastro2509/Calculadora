@@ -96,4 +96,42 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Error al intentar conectar con el servidor.");
         });
     });
+
+    // Función para consultar y renderizar los estudiantes
+    function cargarEstudiantes() {
+        fetch('backend/consultar.php')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const tbody = document.getElementById('tabla-estudiantes');
+                tbody.innerHTML = ''; // Limpiar la tabla antes de volver a llenarla
+                
+                data.data.forEach(estudiante => {
+                    // Crear una nueva fila por cada estudiante
+                    const fila = document.createElement('tr');
+                    
+                    fila.innerHTML = `
+                        <td>${estudiante.nombre_Estudiante}</td>
+                        <td>${estudiante.nota_Uno}</td>
+                        <td>${estudiante.nota_Dos}</td>
+                        <td>${estudiante.nota_Tres}</td>
+                        <td>${estudiante.nota_Cuatro}</td>
+                        <td>${estudiante.promedio}</td>
+                        <td>${estudiante.resultado_Cualitativo}</td>
+                        <td>
+                            <button onclick="prepararEdicion(${estudiante.id})">Modificar</button>
+                            <button onclick="eliminarEstudiante(${estudiante.id})">Eliminar</button>
+                        </td>
+                    `;
+                    tbody.appendChild(fila);
+                });
+            } else {
+                console.error("Error desde PHP:", data.mensaje);
+            }
+        })
+        .catch(error => console.error("Error en la petición fetch:", error));
+    }
+
+    // Llamar a la función apenas cargue el script para mostrar los datos existentes
+    cargarEstudiantes();
 });

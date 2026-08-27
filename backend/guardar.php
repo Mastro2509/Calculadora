@@ -8,19 +8,19 @@ $datos = json_decode(file_get_contents("php://input"), true);
 
 if ($datos) {
     try {
-        $sql = "INSERT INTO estudiantes (nombre_Estudiante, nota_Uno, nota_Dos, nota_Tres, nota_Cuatro, promedio, resultado_Cualitativo) 
+        $sql = "INSERT INTO estudiante (nombre_Estudiante, nota_Uno, nota_Dos, nota_Tres, nota_Cuatro, promedio, resultado_Cualitativo) 
                 VALUES (:nombre_Estudiante, :nota_Uno, :nota_Dos, :nota_Tres, :nota_Cuatro, :promedio, :resultado_Cualitativo)";
         
         $stmt = $pdo->prepare($sql);
         
         // Vincular los parámetros
-        $stmt->bindParam(':nombre_Estudiante', $datos['nombre_Estudiante']);
-        $stmt->bindParam(':nota_Uno', $datos['nota_Uno']);
-        $stmt->bindParam(':nota_Dos', $datos['nota_Dos']);
-        $stmt->bindParam(':nota_Tres', $datos['nota_Tres']);
-        $stmt->bindParam(':nota_Cuatro', $datos['nota_Cuatro']);
+        $stmt->bindParam(':nombre_Estudiante', $datos['nombre']);
+        $stmt->bindParam(':nota_Uno', $datos['nota1']);
+        $stmt->bindParam(':nota_Dos', $datos['nota2']);
+        $stmt->bindParam(':nota_Tres', $datos['nota3']);
+        $stmt->bindParam(':nota_Cuatro', $datos['nota4']);
         $stmt->bindParam(':promedio', $datos['promedio']);
-        $stmt->bindParam(':resultado_Cualitativo', $datos['resultado_Cualitativo']);
+        $stmt->bindParam(':resultado_Cualitativo', $datos['resultadoCualitativo']);
         
         $stmt->execute();
         
