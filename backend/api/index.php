@@ -24,11 +24,13 @@ ok([
         'docentes'     => "$base/docentes.php",
         'asignaciones' => "$base/asignaciones.php",
         'horarios'     => "$base/horarios.php",
+        'consultas'    => "$base/consultas.php",
         'resumen'      => "$base/resumen.php",
         'estudiantes'  => "$base/estudiantes.php",
     ],
     'convenciones' => [
         'id'        => 'Usar ?id=N o ruta/N (PATH_INFO) para operar sobre un registro.',
+        'busqueda'  => 'En los listados GET, ?q=texto hace búsqueda parcial; se combina con los demás filtros.',
         'metodos'   => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
         'respuesta' => ['exito' => '{ status: "success", data: ... }', 'error' => '{ status: "error", mensaje: "..." }'],
         'force'     => 'En horarios, ?force=1 guarda aunque exista conflicto.',

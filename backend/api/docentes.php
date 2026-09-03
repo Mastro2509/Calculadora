@@ -4,6 +4,8 @@
    --------------------------------------------------------------------------
    GET    /docentes.php        -> lista
    GET    /docentes.php?id=N   -> un docente
+   GET    /docentes.php?q=texto -> busca por nombres, apellidos o documento
+   GET    /docentes.php?jornada=Mañana&tipo_contrato=Medio+Tiempo -> filtros
    POST   /docentes.php        -> crea
    PUT    /docentes.php?id=N   -> actualiza
    DELETE /docentes.php?id=N   -> elimina (cascada sobre asignaciones/horarios)
@@ -43,7 +45,29 @@ ejecutar(function () use ($pdo) {
                 $row = $st->fetch();
                 $row ? ok(formatearDocente($row)) : error('Docente no encontrado.', 404);
             }
-            $st = $pdo->query('SELECT * FROM docente ORDER BY apellidos, nombres');
+            $where  = [];
+            $params = [];
+            if (($q = queryTexto('q')) !== null) {
+                $where[]  = "(nombres LIKE ? OR apellidos LIKE ? OR documento LIKE ?
+                              OR CONCAT(nombres, ' ', apellidos) LIKE ?)";
+                $like     = comoLike($q);
+                $params   = array_merge($params, [$like, $like, $like, $like]);
+            }
+            if (($j = queryTexto('jornada')) !== null) {
+                $where[]  = 'jornada = ?';
+                $params[] = $j;
+            }
+            if (($t = queryTexto('tipo_contrato')) !== null) {
+                $where[]  = 'tipo_contrato = ?';
+                $params[] = $t;
+            }
+            $sql = 'SELECT * FROM docente';
+            if ($where) {
+                $sql .= ' WHERE ' . implode(' AND ', $where);
+            }
+            $sql .= ' ORDER BY apellidos, nombres';
+            $st = $pdo->prepare($sql);
+            $st->execute($params);
             ok(array_map('formatearDocente', $st->fetchAll()));
             break;
 

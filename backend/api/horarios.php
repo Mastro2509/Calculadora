@@ -12,6 +12,7 @@
    GET    /horarios.php?idAsignatura=N     -> filtra por asignatura
    GET    /horarios.php?dia=Lunes          -> filtra por día
    GET    /horarios.php?jornada=Mañana     -> filtra por jornada del curso
+   GET    /horarios.php?q=texto            -> busca por docente, curso o asignatura
    POST   /horarios.php                    -> programa una clase
    PUT    /horarios.php?id=N               -> reprograma una clase
    DELETE /horarios.php?id=N               -> elimina una clase
@@ -125,6 +126,12 @@ ejecutar(function () use ($pdo) {
             if (isset($_GET['jornada']) && $_GET['jornada'] !== '') {
                 $where[]  = 'c.jornada = ?';
                 $params[] = $_GET['jornada'];
+            }
+            if (($texto = queryTexto('q')) !== null) {
+                $where[] = "(CONCAT(d.nombres, ' ', d.apellidos) LIKE ? OR c.curso LIKE ?
+                             OR c.grado LIKE ? OR a.nombre_asignatura LIKE ?)";
+                $like    = comoLike($texto);
+                $params  = array_merge($params, [$like, $like, $like, $like]);
             }
 
             $sql = sqlHorarioEnriquecido();

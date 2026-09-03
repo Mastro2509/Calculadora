@@ -82,6 +82,22 @@ function queryInt(string $clave): ?int
     return isset($_GET[$clave]) && is_numeric($_GET[$clave]) ? (int) $_GET[$clave] : null;
 }
 
+/** Parámetro de query opcional como texto ya recortado (o null si viene vacío). */
+function queryTexto(string $clave): ?string
+{
+    if (!isset($_GET[$clave])) {
+        return null;
+    }
+    $v = trim((string) $_GET[$clave]);
+    return $v === '' ? null : $v;
+}
+
+/** Convierte un texto de búsqueda en patrón LIKE ("%texto%"), escapando comodines. */
+function comoLike(string $texto): string
+{
+    return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $texto) . '%';
+}
+
 /* ------------------------------------------------------------------ */
 /* Salida                                                             */
 /* ------------------------------------------------------------------ */

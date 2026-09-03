@@ -8,6 +8,9 @@
 
    GET    /estudiantes.php        -> lista
    GET    /estudiantes.php?id=N   -> un estudiante
+   GET    /estudiantes.php?q=texto            -> busca por nombre
+   GET    /estudiantes.php?resultado=Aprobado -> filtra por resultado cualitativo
+   GET    /estudiantes.php?min=3&max=4.5      -> filtra por rango de promedio
    POST   /estudiantes.php        -> crea
    PUT    /estudiantes.php?id=N   -> actualiza
    DELETE /estudiantes.php?id=N   -> elimina
@@ -82,7 +85,31 @@ ejecutar(function () use ($pdo) {
                 $row = $st->fetch();
                 $row ? ok($row) : error('Estudiante no encontrado.', 404);
             }
-            $st = $pdo->query('SELECT * FROM estudiante ORDER BY nombre_Estudiante');
+            $where  = [];
+            $params = [];
+            if (($q = queryTexto('q')) !== null) {
+                $where[]  = 'nombre_Estudiante LIKE ?';
+                $params[] = comoLike($q);
+            }
+            if (($r = queryTexto('resultado')) !== null) {
+                $where[]  = 'resultado_Cualitativo = ?';
+                $params[] = $r;
+            }
+            if (isset($_GET['min']) && is_numeric($_GET['min'])) {
+                $where[]  = 'promedio >= ?';
+                $params[] = (float) $_GET['min'];
+            }
+            if (isset($_GET['max']) && is_numeric($_GET['max'])) {
+                $where[]  = 'promedio <= ?';
+                $params[] = (float) $_GET['max'];
+            }
+            $sql = 'SELECT * FROM estudiante';
+            if ($where) {
+                $sql .= ' WHERE ' . implode(' AND ', $where);
+            }
+            $sql .= ' ORDER BY nombre_Estudiante';
+            $st = $pdo->prepare($sql);
+            $st->execute($params);
             ok($st->fetchAll());
             break;
 

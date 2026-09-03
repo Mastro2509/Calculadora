@@ -4,6 +4,7 @@
    --------------------------------------------------------------------------
    GET    /asignaturas.php        -> lista
    GET    /asignaturas.php?id=N   -> una asignatura
+   GET    /asignaturas.php?q=texto -> busca por nombre de la asignatura
    POST   /asignaturas.php        -> crea
    PUT    /asignaturas.php?id=N   -> actualiza
    DELETE /asignaturas.php?id=N   -> elimina (cascada sobre asignaciones/horarios)
@@ -25,7 +26,15 @@ ejecutar(function () use ($pdo) {
                 $row = $st->fetch();
                 $row ? ok($row) : error('Asignatura no encontrada.', 404);
             }
-            $st = $pdo->query('SELECT * FROM asignatura ORDER BY nombre_asignatura');
+            $sql    = 'SELECT * FROM asignatura';
+            $params = [];
+            if (($q = queryTexto('q')) !== null) {
+                $sql     .= ' WHERE nombre_asignatura LIKE ?';
+                $params[] = comoLike($q);
+            }
+            $sql .= ' ORDER BY nombre_asignatura';
+            $st = $pdo->prepare($sql);
+            $st->execute($params);
             ok($st->fetchAll());
             break;
 

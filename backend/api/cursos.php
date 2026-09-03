@@ -4,6 +4,8 @@
    --------------------------------------------------------------------------
    GET    /cursos.php            -> lista de cursos
    GET    /cursos.php?id=N       -> un curso
+   GET    /cursos.php?q=texto    -> busca por grado o nombre del curso
+   GET    /cursos.php?jornada=Mañana&grado=10  -> filtros combinables
    POST   /cursos.php            -> crea un curso
    PUT    /cursos.php?id=N       -> reemplaza / actualiza un curso
    DELETE /cursos.php?id=N       -> elimina un curso (borra en cascada sus
@@ -26,7 +28,28 @@ ejecutar(function () use ($pdo) {
                 $curso = $st->fetch();
                 $curso ? ok($curso) : error('Curso no encontrado.', 404);
             }
-            $st = $pdo->query('SELECT * FROM curso ORDER BY grado, curso');
+            $where  = [];
+            $params = [];
+            if (($q = queryTexto('q')) !== null) {
+                $where[]  = '(grado LIKE ? OR curso LIKE ?)';
+                $params[] = comoLike($q);
+                $params[] = comoLike($q);
+            }
+            if (($j = queryTexto('jornada')) !== null) {
+                $where[]  = 'jornada = ?';
+                $params[] = $j;
+            }
+            if (($g = queryTexto('grado')) !== null) {
+                $where[]  = 'grado = ?';
+                $params[] = $g;
+            }
+            $sql = 'SELECT * FROM curso';
+            if ($where) {
+                $sql .= ' WHERE ' . implode(' AND ', $where);
+            }
+            $sql .= ' ORDER BY grado, curso';
+            $st = $pdo->prepare($sql);
+            $st->execute($params);
             ok($st->fetchAll());
             break;
 

@@ -38,6 +38,7 @@ REST de la gestión de notas.
 | Aspecto | Detalle |
 |---|---|
 | Registro individual | `?id=N` en la URL (también se acepta `recurso.php/N` vía PATH_INFO). |
+| Búsqueda | En todos los listados `GET`, `?q=texto` filtra por coincidencia parcial (nombre, documento, curso…). Se combina con los filtros estructurados (`?jornada=`, `?idCurso=`, etc.). |
 | Métodos | `GET`, `POST`, `PUT`/`PATCH`, `DELETE`. `OPTIONS` responde al preflight CORS. |
 | Override de método | `POST ...?_method=PUT` para clientes que no envían PUT/DELETE. |
 | Cuerpo | JSON en el *body* (`Content-Type: application/json`). |
@@ -67,6 +68,8 @@ REST de la gestión de notas.
 |---|---|---|
 | GET | `/cursos.php` | Lista todos los cursos. |
 | GET | `/cursos.php?id=N` | Un curso. |
+| GET | `/cursos.php?q=10-A` | Busca por grado o nombre. |
+| GET | `/cursos.php?jornada=Mañana&grado=10` | Filtros combinables. |
 | POST | `/cursos.php` | Crea un curso. |
 | PUT | `/cursos.php?id=N` | Actualiza (campos omitidos se conservan). |
 | DELETE | `/cursos.php?id=N` | Elimina (borra en cascada asignaciones y horarios). |
@@ -87,6 +90,7 @@ curl -X POST http://localhost/Calculadora/backend/api/cursos.php \
 |---|---|---|
 | GET | `/asignaturas.php` | Lista. |
 | GET | `/asignaturas.php?id=N` | Una asignatura. |
+| GET | `/asignaturas.php?q=mate` | Busca por nombre. |
 | POST | `/asignaturas.php` | Crea. |
 | PUT | `/asignaturas.php?id=N` | Actualiza. |
 | DELETE | `/asignaturas.php?id=N` | Elimina (cascada). |
@@ -107,6 +111,8 @@ curl -X POST http://localhost/Calculadora/backend/api/asignaturas.php \
 |---|---|---|
 | GET | `/docentes.php` | Lista. |
 | GET | `/docentes.php?id=N` | Un docente. |
+| GET | `/docentes.php?q=gómez` | Busca por nombres, apellidos o documento. |
+| GET | `/docentes.php?jornada=Tarde&tipo_contrato=Medio%20Tiempo` | Filtros. |
 | POST | `/docentes.php` | Crea. |
 | PUT | `/docentes.php?id=N` | Actualiza. |
 | DELETE | `/docentes.php?id=N` | Elimina (cascada). |
@@ -133,7 +139,7 @@ Relaciona **docente + curso + asignatura**. Es la base de los horarios.
 |---|---|---|
 | GET | `/asignaciones.php` | Lista enriquecida (nombres + nº de horarios). |
 | GET | `/asignaciones.php?id=N` | Una asignación. |
-| GET | `/asignaciones.php?idDocente=N` · `?idCurso=N` · `?idAsignatura=N` | Filtros. |
+| GET | `/asignaciones.php?idDocente=N` · `?idCurso=N` · `?idAsignatura=N` · `?q=texto` | Filtros. |
 | POST | `/asignaciones.php` | Crea `{ idDocente, idCurso, idAsignatura }`. |
 | DELETE | `/asignaciones.php?id=N` | Elimina (cascada sobre horarios). |
 
@@ -155,7 +161,7 @@ Clase recurrente (día + franja horaria) sobre una asignación.
 |---|---|---|
 | GET | `/horarios.php` | Lista enriquecida (curso, docente, asignatura). |
 | GET | `/horarios.php?id=N` | Un horario. |
-| GET | `/horarios.php?idCurso=N` · `?idDocente=N` · `?idAsignatura=N` · `?dia=Lunes` · `?jornada=Mañana` | Filtros combinables. |
+| GET | `/horarios.php?idCurso=N` · `?idDocente=N` · `?idAsignatura=N` · `?dia=Lunes` · `?jornada=Mañana` · `?q=texto` | Filtros combinables. |
 | POST | `/horarios.php` | Programa una clase. |
 | PUT | `/horarios.php?id=N` | Reprograma. |
 | DELETE | `/horarios.php?id=N` | Elimina. |
@@ -193,6 +199,45 @@ curl -X POST http://localhost/Calculadora/backend/api/horarios.php \
 
 ---
 
+### `consultas.php` (solo `GET`)
+
+Respalda el panel **"Consultar la programación"** del frontend
+(`programacion.html` → *Consultas*): busca las clases programadas filtrando
+por curso, docente, asignatura o jornada.
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/consultas.php` | Todas las clases + `opciones` para poblar los `<select>` (cursos, docentes, asignaturas, jornadas). |
+| GET | `/consultas.php?tipo=curso&valor=3` | Clases de un curso. |
+| GET | `/consultas.php?tipo=docente&valor=1` | Clases de un docente. |
+| GET | `/consultas.php?tipo=asignatura&valor=2` | Clases de una asignatura. |
+| GET | `/consultas.php?tipo=jornada&valor=Mañana` | Clases de una jornada. |
+| GET | `/consultas.php?tipo=texto&valor=matem` | Búsqueda libre (docente, curso o asignatura). |
+
+`tipo` ∈ `curso`, `docente`, `asignatura`, `jornada`, `texto`. Cada fila de
+`resultados` es un horario enriquecido (curso, grado, jornada, docente,
+asignatura, día y franja).
+
+```bash
+curl 'http://localhost/Calculadora/backend/api/consultas.php?tipo=docente&valor=1'
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "tipo": "docente", "valor": "1", "total": 2,
+    "resultados": [
+      { "idHorario": 1, "curso": "10-A", "grado": "10", "jornada": "Mañana",
+        "docente": "María Gómez", "asignatura": "Matemáticas",
+        "dia_semana": "Lunes", "hora_inicio": "07:00:00", "hora_fin": "09:00:00" }
+    ]
+  }
+}
+```
+
+---
+
 ### `resumen.php` (solo `GET`)
 
 Datos agregados para el dashboard:
@@ -220,6 +265,7 @@ Alternativa unificada a `guardar.php` / `consultar.php` / `actualizar.php` /
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/estudiantes.php` · `?id=N` | Lista / uno. |
+| GET | `/estudiantes.php?q=texto` · `?resultado=Aprobado` · `?min=3&max=4.5` | Búsqueda y filtros. |
 | POST | `/estudiantes.php` | Crea. |
 | PUT | `/estudiantes.php?id=N` | Actualiza. |
 | DELETE | `/estudiantes.php?id=N` | Elimina. |
@@ -252,6 +298,7 @@ backend/
     ├── docentes.php
     ├── asignaciones.php
     ├── horarios.php
+    ├── consultas.php       # panel "Consultar la programación"
     ├── resumen.php
     ├── estudiantes.php
     ├── mejoras_schema.sql   # índices y restricción única (opcional)

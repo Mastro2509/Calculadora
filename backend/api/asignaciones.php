@@ -10,6 +10,7 @@
    GET    /asignaciones.php?idDocente=N     -> filtra por docente
    GET    /asignaciones.php?idCurso=N       -> filtra por curso
    GET    /asignaciones.php?idAsignatura=N  -> filtra por asignatura
+   GET    /asignaciones.php?q=texto         -> busca por docente, curso o asignatura
    POST   /asignaciones.php                 -> crea { idDocente, idCurso, idAsignatura }
    DELETE /asignaciones.php?id=N            -> elimina (cascada sobre horarios)
 
@@ -53,6 +54,12 @@ ejecutar(function () use ($pdo) {
                     $where[]  = "$col = ?";
                     $params[] = $v;
                 }
+            }
+            if (($texto = queryTexto('q')) !== null) {
+                $where[] = "(CONCAT(d.nombres, ' ', d.apellidos) LIKE ? OR c.curso LIKE ?
+                             OR c.grado LIKE ? OR a.nombre_asignatura LIKE ?)";
+                $like    = comoLike($texto);
+                $params  = array_merge($params, [$like, $like, $like, $like]);
             }
             $sql = sqlAsignacionEnriquecida();
             if ($where) {
