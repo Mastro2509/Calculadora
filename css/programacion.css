@@ -1,0 +1,442 @@
+/* ==========================================================================
+   Programación Académica - Estilos
+   Reutiliza las variables y el lenguaje visual de css/style.css
+   ========================================================================== */
+
+:root {
+    --warning-color: #e0a800;
+    --info-color: #17a2b8;
+    --muted-color: #6c757d;
+}
+
+/* Navegación por pestañas ----------------------------------------------- */
+.nav-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    max-width: 1000px;
+    margin: 0 auto 2rem;
+    padding: 0 1rem;
+}
+
+.nav-tab {
+    padding: 0.7rem 1.3rem;
+    border: 1px solid var(--border-color);
+    background-color: var(--card-bg);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: bold;
+    color: var(--text-color);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.nav-tab:hover {
+    background-color: #eef3f9;
+}
+
+.nav-tab.active {
+    background-color: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+
+/* Paneles -------------------------------------------------------------- */
+.panel {
+    display: none;
+}
+
+.panel.active {
+    display: block;
+}
+
+/* Botón para volver / enlaces de navegación -------------------------- */
+.btn-nav {
+    display: inline-block;
+    margin-top: 1rem;
+    text-decoration: none;
+    text-align: center;
+}
+
+.btn-secondary { background-color: var(--muted-color); }
+.btn-warning { background-color: var(--warning-color); }
+.btn-danger { background-color: var(--danger-color); }
+.btn-info { background-color: var(--info-color); }
+
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+}
+
+/* Dashboard --------------------------------------------------------------- */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.stat-box {
+    background-color: var(--background-color);
+    border-left: 5px solid var(--primary-color);
+    border-radius: 6px;
+    padding: 1.2rem;
+    text-align: center;
+}
+
+.stat-box .stat-number {
+    display: block;
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.stat-box .stat-label {
+    font-size: 0.9rem;
+    color: var(--muted-color);
+}
+
+.stat-box.conflict {
+    border-left-color: var(--danger-color);
+}
+
+.stat-box.conflict .stat-number {
+    color: var(--danger-color);
+}
+
+/* Mensajes / alertas ---------------------------------------------------- */
+.alert {
+    padding: 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+}
+
+.alert-success { background-color: #d4edda; color: #155724; }
+.alert-danger { background-color: #f8d7da; color: #721c24; }
+.alert-info { background-color: #d1ecf1; color: #0c5460; }
+
+.empty-row td {
+    text-align: center;
+    color: var(--muted-color);
+    font-style: italic;
+}
+
+/* Etiquetas de estado -------------------------------------------------- */
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #fff;
+}
+
+.badge-manana { background-color: var(--info-color); }
+.badge-tarde { background-color: var(--warning-color); }
+.badge-noche { background-color: var(--primary-color); }
+.badge-unica { background-color: var(--success-color); }
+
+/* Fila de tabla con conflicto ---------------------------------------- */
+tr.row-conflict td {
+    background-color: #fff3f3;
+}
+
+/* Formularios en línea ---------------------------------------------------- */
+.form-inline-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+select {
+    width: 100%;
+    padding: 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1rem;
+    background-color: #fff;
+}
+
+textarea {
+    width: 100%;
+    padding: 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin-top: 0.5rem;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-weight: normal;
+}
+
+.checkbox-group input {
+    width: auto;
+}
+
+/* Consultas ---------------------------------------------------------- */
+.query-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    margin-bottom: 1.5rem;
+}
+
+.query-controls .form-group {
+    flex: 1;
+    min-width: 200px;
+    margin-bottom: 0;
+}
+
+@media (max-width: 600px) {
+    .nav-tabs {
+        flex-direction: column;
+    }
+}
+
+/* ==========================================================================
+   Calendario tipo Google Calendar (vista de Horarios)
+   ========================================================================== */
+.cal-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.cal-nav {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.cal-titulo {
+    margin: 0;
+    padding: 0;
+    border: none;
+    flex: 1;
+    min-width: 180px;
+    text-align: center;
+    font-size: 1.2rem;
+    color: var(--primary-color);
+    text-transform: capitalize;
+}
+
+.cal-views {
+    display: flex;
+    gap: 0.3rem;
+}
+
+.cal-view-btn {
+    padding: 0.45rem 0.9rem;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.85rem;
+    color: var(--text-color);
+}
+
+.cal-view-btn.active {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+
+/* --- Vistas Semana / Día --- */
+.cal-semana {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow-x: auto;
+}
+
+.cal-cabecera {
+    display: flex;
+    background: var(--background-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cal-esquina {
+    width: 56px;
+    flex-shrink: 0;
+}
+
+.cal-dia-cab {
+    flex: 1;
+    text-align: center;
+    padding: 0.5rem 0.2rem;
+    font-size: 0.8rem;
+    font-weight: bold;
+    border-left: 1px solid var(--border-color);
+    cursor: pointer;
+}
+
+.cal-dia-cab .num {
+    display: block;
+    font-size: 1.15rem;
+}
+
+.cal-dia-cab.hoy {
+    background: #e7f0fb;
+    color: var(--primary-color);
+}
+
+.cal-cuerpo {
+    display: flex;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.cal-gutter {
+    width: 56px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.cal-hlbl {
+    position: absolute;
+    right: 6px;
+    font-size: 0.7rem;
+    color: var(--muted-color);
+}
+
+.cal-dias {
+    flex: 1;
+    display: flex;
+    position: relative;
+}
+
+.cal-col {
+    flex: 1;
+    position: relative;
+    border-left: 1px solid var(--border-color);
+    min-width: 90px;
+}
+
+.cal-hline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid #eef1f4;
+}
+
+.cal-evento {
+    position: absolute;
+    border-radius: 5px;
+    padding: 2px 5px;
+    color: #fff;
+    overflow: hidden;
+    font-size: 0.72rem;
+    line-height: 1.25;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.cal-evento .ev-sub {
+    opacity: 0.9;
+}
+
+.cal-evento.conflicto {
+    outline: 2px solid var(--danger-color);
+    outline-offset: -2px;
+}
+
+/* --- Vista Mes --- */
+.cal-mes {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.cal-mes-cab {
+    background: var(--background-color);
+    text-align: center;
+    padding: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: bold;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cal-mes-dia {
+    min-height: 104px;
+    border-top: 1px solid var(--border-color);
+    border-left: 1px solid var(--border-color);
+    padding: 4px;
+    cursor: pointer;
+}
+
+.cal-mes-dia:nth-child(7n + 1) {
+    border-left: none;
+}
+
+.cal-mes-num {
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-align: right;
+    color: var(--muted-color);
+}
+
+.cal-mes-dia.otro-mes {
+    background: #fafbfc;
+}
+
+.cal-mes-dia.otro-mes .cal-mes-num {
+    opacity: 0.4;
+}
+
+.cal-mes-dia.hoy .cal-mes-num {
+    display: inline-block;
+    float: right;
+    background: var(--primary-color);
+    color: #fff;
+    border-radius: 50%;
+    padding: 1px 6px;
+}
+
+.cal-chip {
+    font-size: 0.68rem;
+    color: #fff;
+    border-radius: 4px;
+    padding: 1px 4px;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.cal-mes-mas {
+    font-size: 0.66rem;
+    color: var(--muted-color);
+    margin-top: 2px;
+}
+
+@media (max-width: 600px) {
+    .cal-titulo {
+        order: -1;
+        flex-basis: 100%;
+    }
+    .cal-mes-dia {
+        min-height: 68px;
+    }
+    .cal-chip {
+        font-size: 0.6rem;
+    }
+}

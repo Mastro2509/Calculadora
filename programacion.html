@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Programación Académica</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/programacion.css">
+</head>
+<body>
+    <header class="header">
+        <h1>Programación Académica</h1>
+        <p>Gestión de cursos, docentes, asignaturas y horarios</p>
+        <a href="index.html" class="btn btn-secondary btn-nav">&laquo; Volver a Gestión de Notas</a>
+    </header>
+
+    <!-- Navegación por módulos -->
+    <nav class="nav-tabs" id="nav-tabs">
+        <button class="nav-tab active" data-panel="panel-dashboard">Dashboard</button>
+        <button class="nav-tab" data-panel="panel-cursos">Cursos</button>
+        <button class="nav-tab" data-panel="panel-docentes">Docentes</button>
+        <button class="nav-tab" data-panel="panel-asignaturas">Asignaturas</button>
+        <button class="nav-tab" data-panel="panel-horarios">Horarios</button>
+        <button class="nav-tab" data-panel="panel-consultas">Consultas</button>
+    </nav>
+
+    <main class="container">
+
+        <!-- ============================ DASHBOARD ============================ -->
+        <section class="panel active" id="panel-dashboard">
+            <div class="card">
+                <h2>Resumen general de la programación</h2>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <span class="stat-number" id="stat-cursos">0</span>
+                        <span class="stat-label">Cursos</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-number" id="stat-docentes">0</span>
+                        <span class="stat-label">Docentes</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-number" id="stat-asignaturas">0</span>
+                        <span class="stat-label">Asignaturas</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-number" id="stat-horarios">0</span>
+                        <span class="stat-label">Clases programadas</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-number" id="stat-estudiantes">0</span>
+                        <span class="stat-label">Estudiantes</span>
+                    </div>
+                    <div class="stat-box conflict">
+                        <span class="stat-number" id="stat-conflictos">0</span>
+                        <span class="stat-label">Conflictos de horario</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Distribución por jornada</h2>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Jornada</th>
+                                <th>Cursos</th>
+                                <th>Estudiantes</th>
+                                <th>Clases programadas</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-jornadas"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Conflictos detectados</h2>
+                <div id="lista-conflictos"></div>
+            </div>
+        </section>
+
+        <!-- ============================ CURSOS ============================ -->
+        <section class="panel" id="panel-cursos">
+            <section class="card">
+                <h2 id="titulo-form-curso">Registrar Curso</h2>
+                <form id="form-curso">
+                    <input type="hidden" id="curso-id">
+                    <div class="form-inline-grid">
+                        <div class="form-group">
+                            <label for="curso-grado">Grado:</label>
+                            <input type="text" id="curso-grado" placeholder="Ej. 10" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="curso-nombre">Curso:</label>
+                            <input type="text" id="curso-nombre" placeholder="Ej. 10-A" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="curso-jornada">Jornada:</label>
+                            <select id="curso-jornada" required>
+                                <option value="">Seleccione...</option>
+                                <option value="Mañana">Mañana</option>
+                                <option value="Tarde">Tarde</option>
+                                <option value="Noche">Noche</option>
+                                <option value="Única">Única</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="curso-estudiantes">N.º de estudiantes:</label>
+                            <input type="number" id="curso-estudiantes" min="0" placeholder="0" required>
+                        </div>
+                    </div>
+                    <div class="button-group">
+                        <button type="submit" class="btn btn-success" id="btn-guardar-curso">Guardar Curso</button>
+                        <button type="button" class="btn btn-secondary" id="btn-cancelar-curso" style="display:none;">Cancelar</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="card">
+                <h2>Cursos registrados</h2>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Grado</th>
+                                <th>Curso</th>
+                                <th>Jornada</th>
+                                <th>Estudiantes</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-cursos"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+
+        <!-- ============================ DOCENTES ============================ -->
+        <section class="panel" id="panel-docentes">
+            <section class="card">
+                <h2 id="titulo-form-docente">Registrar Docente</h2>
+                <form id="form-docente">
+                    <input type="hidden" id="docente-id">
+                    <div class="form-inline-grid">
+                        <div class="form-group">
+                            <label for="docente-nombre">Nombre completo:</label>
+                            <input type="text" id="docente-nombre" placeholder="Ej. María Gómez" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="docente-documento">Documento:</label>
+                            <input type="text" id="docente-documento" placeholder="Ej. 1088123456" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="docente-email">Correo:</label>
+                            <input type="email" id="docente-email" placeholder="correo@institucion.edu.co">
+                        </div>
+                        <div class="form-group">
+                            <label for="docente-telefono">Teléfono:</label>
+                            <input type="text" id="docente-telefono" placeholder="300 000 0000">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Asignaturas que puede dictar:</label>
+                        <div class="checkbox-group" id="docente-asignaturas">
+                            <span class="stat-label">Primero registre asignaturas.</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="docente-disponibilidad">Disponibilidad:</label>
+                        <textarea id="docente-disponibilidad" rows="2" placeholder="Ej. Lunes a Viernes 7:00 - 13:00"></textarea>
+                    </div>
+                    <div class="button-group">
+                        <button type="submit" class="btn btn-success" id="btn-guardar-docente">Guardar Docente</button>
+                        <button type="button" class="btn btn-secondary" id="btn-cancelar-docente" style="display:none;">Cancelar</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="card">
+                <h2>Docentes registrados</h2>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Documento</th>
+                                <th>Contacto</th>
+                                <th>Asignaturas</th>
+                                <th>Disponibilidad</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-docentes"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+
+        <!-- ============================ ASIGNATURAS ============================ -->
+        <section class="panel" id="panel-asignaturas">
+            <section class="card">
+                <h2 id="titulo-form-asignatura">Registrar Asignatura</h2>
+                <form id="form-asignatura">
+                    <input type="hidden" id="asignatura-id">
+                    <div class="form-inline-grid">
+                        <div class="form-group">
+                            <label for="asignatura-nombre">Nombre:</label>
+                            <input type="text" id="asignatura-nombre" placeholder="Ej. Matemáticas" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="asignatura-intensidad">Intensidad horaria (h/semana):</label>
+                            <input type="number" id="asignatura-intensidad" min="1" placeholder="Ej. 5" required>
+                        </div>
+                    </div>
+                    <div class="button-group">
+                        <button type="submit" class="btn btn-success" id="btn-guardar-asignatura">Guardar Asignatura</button>
+                        <button type="button" class="btn btn-secondary" id="btn-cancelar-asignatura" style="display:none;">Cancelar</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="card">
+                <h2>Asignaturas registradas</h2>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Intensidad horaria</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-asignaturas"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+
+        <!-- ============================ HORARIOS ============================ -->
+        <section class="panel" id="panel-horarios">
+            <section class="card">
+                <h2 id="titulo-form-horario">Programar Clase</h2>
+                <form id="form-horario">
+                    <input type="hidden" id="horario-id">
+                    <div class="form-inline-grid">
+                        <div class="form-group">
+                            <label for="horario-curso">Curso:</label>
+                            <select id="horario-curso" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="horario-asignatura">Asignatura:</label>
+                            <select id="horario-asignatura" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="horario-docente">Docente:</label>
+                            <select id="horario-docente" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="horario-dia">Día:</label>
+                            <select id="horario-dia" required>
+                                <option value="">Seleccione...</option>
+                                <option>Lunes</option>
+                                <option>Martes</option>
+                                <option>Miércoles</option>
+                                <option>Jueves</option>
+                                <option>Viernes</option>
+                                <option>Sábado</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="horario-inicio">Hora inicio:</label>
+                            <input type="time" id="horario-inicio" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="horario-fin">Hora fin:</label>
+                            <input type="time" id="horario-fin" required>
+                        </div>
+                    </div>
+                    <div id="mensaje-horario"></div>
+                    <div class="button-group">
+                        <button type="submit" class="btn btn-success" id="btn-guardar-horario">Programar Clase</button>
+                        <button type="button" class="btn btn-secondary" id="btn-cancelar-horario" style="display:none;">Cancelar</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="card">
+                <div class="cal-toolbar">
+                    <div class="cal-nav">
+                        <button type="button" class="btn btn-secondary btn-sm" id="cal-prev">&lsaquo;</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="cal-hoy">Hoy</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="cal-next">&rsaquo;</button>
+                    </div>
+                    <h2 class="cal-titulo" id="cal-titulo">&mdash;</h2>
+                    <div class="cal-views">
+                        <button type="button" class="cal-view-btn" data-vista="mes">Mes</button>
+                        <button type="button" class="cal-view-btn" data-vista="semana">Semana</button>
+                        <button type="button" class="cal-view-btn" data-vista="dia">Día</button>
+                    </div>
+                </div>
+                <div id="cal-contenedor"></div>
+            </section>
+
+            <section class="card">
+                <h2>Clases programadas</h2>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Curso</th>
+                                <th>Asignatura</th>
+                                <th>Docente</th>
+                                <th>Día</th>
+                                <th>Hora</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-horarios"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+
+        <!-- ============================ CONSULTAS ============================ -->
+        <section class="panel" id="panel-consultas">
+            <section class="card">
+                <h2>Consultar la programación</h2>
+                <div class="query-controls">
+                    <div class="form-group">
+                        <label for="consulta-tipo">Consultar por:</label>
+                        <select id="consulta-tipo">
+                            <option value="curso">Curso</option>
+                            <option value="docente">Docente</option>
+                            <option value="asignatura">Asignatura</option>
+                            <option value="jornada">Jornada</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="consulta-valor">Valor:</label>
+                        <select id="consulta-valor"></select>
+                    </div>
+                    <button type="button" class="btn btn-primary" id="btn-consultar">Consultar</button>
+                </div>
+
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Curso</th>
+                                <th>Jornada</th>
+                                <th>Asignatura</th>
+                                <th>Docente</th>
+                                <th>Día</th>
+                                <th>Hora</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-consulta"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+
+    </main>
+
+    <script src="js/programacion.js"></script>
+</body>
+</html>

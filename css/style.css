@@ -109,6 +109,14 @@ input[type="number"] {
 .btn-primary { background-color: var(--primary-color); }
 .btn-success { background-color: var(--success-color); }
 
+/* Enlace con apariencia de botón (navegación entre páginas) */
+.btn-nav {
+    display: inline-block;
+    margin-top: 1rem;
+    text-decoration: none;
+    text-align: center;
+}
+
 /* Área de resultados */
 .result-card {
     background-color: #e9ecef;
