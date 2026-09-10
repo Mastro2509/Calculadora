@@ -1,15 +1,4 @@
 <?php
-/* ==========================================================================
-   Recurso: asignaturas
-   --------------------------------------------------------------------------
-   GET    /asignaturas.php        -> lista
-   GET    /asignaturas.php?id=N   -> una asignatura
-   GET    /asignaturas.php?q=texto -> busca por nombre de la asignatura
-   POST   /asignaturas.php        -> crea
-   PUT    /asignaturas.php?id=N   -> actualiza
-   DELETE /asignaturas.php?id=N   -> elimina (cascada sobre asignaciones/horarios)
-   Campos: nombre_asignatura, intensidad_horaria (entero > 0)
-   ========================================================================== */
 
 require __DIR__ . '/_bootstrap.php';
 

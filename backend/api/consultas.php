@@ -1,26 +1,4 @@
 <?php
-/* ==========================================================================
-   Recurso: consultas  (solo lectura)
-   --------------------------------------------------------------------------
-   Respalda el panel "Consultar la programación" del frontend
-   (programacion.html -> #panel-consultas): buscar las clases programadas
-   filtrando por curso, docente, asignatura o jornada.
-
-   GET /consultas.php
-       -> { opciones: {...}, resultados: [ ...todas las clases... ] }
-          `opciones` trae las listas para poblar el <select> de valores.
-
-   GET /consultas.php?tipo=curso&valor=3
-   GET /consultas.php?tipo=docente&valor=1
-   GET /consultas.php?tipo=asignatura&valor=2
-   GET /consultas.php?tipo=jornada&valor=Mañana
-   GET /consultas.php?tipo=texto&valor=matem      (búsqueda libre)
-       -> { tipo, valor, total, resultados: [ ...clases que coinciden... ] }
-
-   Cada fila de `resultados` es un horario enriquecido: curso, grado, jornada,
-   docente, asignatura, día y franja horaria.
-   ========================================================================== */
-
 require __DIR__ . '/_bootstrap.php';
 
 if (metodo() !== 'GET') {
@@ -38,7 +16,6 @@ ejecutar(function () use ($pdo) {
     $tipo  = queryTexto('tipo');
     $valor = queryTexto('valor');
 
-    /* --- Sin filtro: catálogo de opciones + todas las clases --------------- */
     if ($tipo === null) {
         $cursos = $pdo->query(
             "SELECT idCurso AS valor, CONCAT(grado, ' - ', curso, ' (', jornada, ')') AS etiqueta
@@ -67,7 +44,6 @@ ejecutar(function () use ($pdo) {
         ]);
     }
 
-    /* --- Con filtro ------------------------------------------------------------ */
     exigirEnum($tipo, TIPOS_CONSULTA, 'tipo');
     if ($valor === null) {
         error("Indique 'valor' para la consulta por $tipo.", 422);

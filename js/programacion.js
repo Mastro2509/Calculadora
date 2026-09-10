@@ -1,37 +1,50 @@
-/* ==========================================================================
-   Programación Académica - Lógica de la interfaz
-   --------------------------------------------------------------------------
-   Los datos se guardan en localStorage para que la interfaz sea funcional
-   sin necesidad de montar el backend. La estructura de cada entidad coincide
-   con el modelo entidad-relación de la guía, de modo que más adelante se
-   pueda reemplazar el almacenamiento local por llamadas a la API REST/PHP.
-   ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. Estado en memoria (espejo de la base de datos)
+    const db = {
+        cursos: [], docentes: [], asignaturas: [], horarios: [],
+        asignaciones: [],
+        // Perfil: qué asignaturas puede dictar cada docente, exista o no una
+        // clase programada. Es lo que alimenta el filtro de docentes aptos.
+        perfiles: [],
+        // Carga horaria semanal por docente, tal como la guarda la tabla
+        // `carga_docente` (horas programadas, tope del contrato y si lo excede).
+        cargas: []
+    };
 
-    // ----------------------------------------------------------------------
-    // 1. Capa de datos (localStorage)
-    // ----------------------------------------------------------------------
-    const STORAGE_KEY = 'programacion_academica';
+    // Docente cuyo horario se está viendo en el panel de Horarios.
+    // null = se ven las clases de todos los docentes.
+    let docenteFiltrado = null;
 
-    const db = cargarDB();
-
-    function cargarDB() {
-        const base = { cursos: [], docentes: [], asignaturas: [], horarios: [], seq: 1 };
-        try {
-            const guardado = JSON.parse(localStorage.getItem(STORAGE_KEY));
-            return guardado && typeof guardado === 'object' ? Object.assign(base, guardado) : base;
-        } catch (e) {
-            return base;
-        }
+    /** Recarga todo desde la API y repinta la interfaz. */
+    async function recargarTodo() {
+        const [cursos, docentes, asignaturas, horarios, asignaciones, perfiles, carga] = await Promise.all([
+            API.obtenerCursos(),
+            API.obtenerDocentes(),
+            API.obtenerAsignaturas(),
+            API.obtenerHorarios(),
+            API.obtenerAsignaciones(),
+            API.obtenerDocenteAsignaturas(),
+            API.obtenerCargaDocentes()
+        ]);
+        db.cursos = cursos;
+        db.docentes = docentes;
+        db.asignaturas = asignaturas;
+        db.horarios = horarios;
+        db.asignaciones = asignaciones;
+        db.perfiles = perfiles;
+        db.cargas = (carga && carga.docentes) ? carga.docentes : [];
+        renderTodo();
     }
 
-    function guardarDB() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
-    }
-
-    function nuevoId() {
-        return db.seq++;
+    function renderTodo() {
+        renderCursos();
+        renderAsignaturas();
+        renderDocentes();
+        refrescarFiltroDocente();
+        renderHorarios();
+        renderDashboard();
+        actualizarValoresConsulta();
     }
 
     // Utilidades -----------------------------------------------------------
@@ -43,12 +56,14 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    /** Celda "sin dato". */
+    const GUION = '<span class="stat-label">—</span>';
+
     function badgeJornada(jornada) {
         const clases = {
             'Mañana': 'badge-manana',
             'Tarde': 'badge-tarde',
-            'Noche': 'badge-noche',
-            'Única': 'badge-unica'
+            'Mixta': 'badge-unica'
         };
         return `<span class="badge ${clases[jornada] || ''}">${escapeHTML(jornada)}</span>`;
     }
@@ -57,14 +72,95 @@ document.addEventListener('DOMContentLoaded', () => {
         return `<tr class="empty-row"><td colspan="${colspan}">${texto}</td></tr>`;
     }
 
-    // Búsquedas auxiliares ----------------------------------------------
-    const buscarCurso = (id) => db.cursos.find(c => c.id === id);
-    const buscarDocente = (id) => db.docentes.find(d => d.id === id);
-    const buscarAsignatura = (id) => db.asignaturas.find(a => a.id === id);
+    /** Muestra un mensaje de error/éxito dentro de un formulario. */
+    function mostrarMensaje(idContenedor, texto, tipo = 'danger') {
+        const cont = $(idContenedor);
+        if (!cont) return;
+        if (!texto) { cont.innerHTML = ''; return; }
+        cont.innerHTML = `<div class="alert alert-${tipo}">${escapeHTML(texto)}</div>`;
+        if (tipo === 'success') {
+            setTimeout(() => { if (cont.innerHTML.includes(texto)) cont.innerHTML = ''; }, 3000);
+        }
+    }
 
-    // ----------------------------------------------------------------------
+    // Búsquedas auxiliares (siempre por la PK de la base de datos) ----------
+    const buscarCurso = (id) => db.cursos.find(c => Number(c.idCurso) === Number(id));
+    const buscarDocente = (id) => db.docentes.find(d => Number(d.idDocente) === Number(id));
+    const buscarAsignatura = (id) => db.asignaturas.find(a => Number(a.idAsignatura) === Number(id));
+    const buscarHorario = (id) => db.horarios.find(h => Number(h.idHorario) === Number(id));
+
+    const nombreDocente = (d) => d ? `${d.nombres || ''} ${d.apellidos || ''}`.trim() : '';
+    const nombreAsignatura = (a) => a ? (a.nombre_asignatura || '') : '';
+    // 1b. Reglas académicas: qué asignaturas corresponden a qué grados
+    // Cada asignatura solo puede programarse en los grados indicados.
+    // Las que no aparecen aquí se consideran transversales (todos los grados).
+    const GRADOS_POR_ASIGNATURA = {
+        // Física y Química se introducen en noveno y continúan en la media.
+        'física': [9, 10, 11],
+        'fisica': [9, 10, 11],
+        'química': [9, 10, 11],
+        'quimica': [9, 10, 11],
+        'filosofía': [10, 11],
+        'filosofia': [10, 11],
+        'trigonometría': [10, 11],
+        'trigonometria': [10, 11],
+        'cálculo': [11],
+        'calculo': [11],
+        'economía': [10, 11],
+        'economia': [10, 11],
+        'ciencias políticas': [10, 11],
+        'ciencias politicas': [10, 11],
+        'biología': [6, 7, 8, 9, 10, 11],
+        'biologia': [6, 7, 8, 9, 10, 11],
+        'ciencias sociales': [4, 5, 6, 7, 8, 9, 10, 11]
+        // Informática y las áreas transversales (Matemáticas, Español, Inglés,
+        // Educación Física, Ética) no se listan: aplican a todos los grados.
+    };
+
+    // Días lectivos tal como los guarda el ENUM (sin tildes) y su etiqueta.
+    const DIAS_LECTIVOS = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+    const ETIQUETA_DIA = {
+        'Lunes': 'Lunes', 'Martes': 'Martes', 'Miercoles': 'Miércoles',
+        'Jueves': 'Jueves', 'Viernes': 'Viernes', 'Sabado': 'Sábado'
+    };
+
+    // Franja horaria de cada jornada, para acotar los campos de hora.
+    const FRANJA_JORNADA = {
+        'Mañana': { min: '06:00', max: '12:30' },
+        'Tarde':  { min: '12:30', max: '18:30' },
+        'Mixta':  { min: '06:00', max: '18:30' }
+    };
+
+    /** Extrae el número de grado ("10", "10-A", "Décimo A") -> 10, o null. */
+    function numeroGrado(grado) {
+        const m = String(grado == null ? '' : grado).match(/\d+/);
+        return m ? parseInt(m[0], 10) : null;
+    }
+
+    /** Grados permitidos para una asignatura, o null si aplica a todos. */
+    function gradosPermitidos(asignatura) {
+        if (!asignatura) return null;
+        const clave = nombreAsignatura(asignatura).trim().toLowerCase();
+        return GRADOS_POR_ASIGNATURA[clave] || null;
+    }
+
+    /** ¿Puede dictarse esta asignatura en este curso? */
+    function asignaturaAplicaACurso(asignatura, curso) {
+        const permitidos = gradosPermitidos(asignatura);
+        if (!permitidos) return true;          // transversal
+        const g = numeroGrado(curso && curso.grado);
+        if (g === null) return true;           // grado no numérico: no se bloquea
+        return permitidos.includes(g);
+    }
+
+    /** Texto explicativo del rango de grados de una asignatura. */
+    function textoGrados(asignatura) {
+        const permitidos = gradosPermitidos(asignatura);
+        if (!permitidos) return 'todos los grados';
+        if (permitidos.length === 1) return `grado ${permitidos[0]}`;
+        return `grados ${permitidos.join(', ')}`;
+    }
     // 2. Navegación por pestañas
-    // ----------------------------------------------------------------------
     $('nav-tabs').addEventListener('click', (e) => {
         const boton = e.target.closest('.nav-tab');
         if (!boton) return;
@@ -80,35 +176,51 @@ document.addEventListener('DOMContentLoaded', () => {
         if (boton.dataset.panel === 'panel-horarios') renderCalendario();
     });
 
-    // ----------------------------------------------------------------------
+    /** Deshabilita un botón mientras se procesa una petición. */
+    async function conBoton(idBoton, textoOcupado, tarea) {
+        const btn = $(idBoton);
+        const original = btn ? btn.textContent : '';
+        if (btn) { btn.disabled = true; btn.textContent = textoOcupado; }
+        try {
+            await tarea();
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = original; }
+        }
+    }
     // 3. CRUD Cursos
-    // ----------------------------------------------------------------------
     const formCurso = $('form-curso');
 
     formCurso.addEventListener('submit', (e) => {
         e.preventDefault();
+        mostrarMensaje('mensaje-curso', '');
+
         const id = $('curso-id').value;
         const datos = {
             grado: $('curso-grado').value.trim(),
             curso: $('curso-nombre').value.trim(),
             jornada: $('curso-jornada').value,
-            numEstudiantes: parseInt($('curso-estudiantes').value, 10) || 0
+            numero_estudiantes: parseInt($('curso-estudiantes').value, 10) || 0
         };
 
         if (!datos.grado || !datos.curso || !datos.jornada) {
-            alert('Complete grado, curso y jornada.');
+            mostrarMensaje('mensaje-curso', 'Complete grado, curso y jornada.');
             return;
         }
 
-        if (id) {
-            Object.assign(buscarCurso(parseInt(id, 10)), datos);
-        } else {
-            db.cursos.push(Object.assign({ id: nuevoId() }, datos));
-        }
-
-        guardarDB();
-        resetFormCurso();
-        renderCursos();
+        conBoton('btn-guardar-curso', 'Guardando...', async () => {
+            try {
+                if (id) {
+                    await API.actualizarCurso(parseInt(id, 10), datos);
+                } else {
+                    await API.crearCurso(datos);
+                }
+                await recargarTodo();
+                resetFormCurso();
+                mostrarMensaje('mensaje-curso', id ? 'Curso actualizado.' : 'Curso creado.', 'success');
+            } catch (err) {
+                mostrarMensaje('mensaje-curso', err.message);
+            }
+        });
     });
 
     $('btn-cancelar-curso').addEventListener('click', resetFormCurso);
@@ -124,25 +236,33 @@ document.addEventListener('DOMContentLoaded', () => {
     function editarCurso(id) {
         const c = buscarCurso(id);
         if (!c) return;
-        $('curso-id').value = c.id;
-        $('curso-grado').value = c.grado;
-        $('curso-nombre').value = c.curso;
-        $('curso-jornada').value = c.jornada;
-        $('curso-estudiantes').value = c.numEstudiantes;
-        $('titulo-form-curso').textContent = 'Editar Curso';
+        mostrarMensaje('mensaje-curso', '');
+        $('curso-id').value = c.idCurso;
+        $('curso-grado').value = c.grado || '';
+        $('curso-nombre').value = c.curso || '';
+        $('curso-jornada').value = c.jornada || '';
+        $('curso-estudiantes').value = c.numero_estudiantes ?? 0;
+        $('titulo-form-curso').textContent = `Editar Curso: ${c.curso}`;
         $('btn-guardar-curso').textContent = 'Actualizar Curso';
         $('btn-cancelar-curso').style.display = 'inline-block';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        formCurso.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    function eliminarCurso(id) {
-        const usados = db.horarios.some(h => h.cursoId === id);
-        if (usados && !confirm('Este curso tiene clases programadas que también se eliminarán. ¿Continuar?')) return;
-        if (!usados && !confirm('¿Eliminar este curso?')) return;
-        db.cursos = db.cursos.filter(c => c.id !== id);
-        db.horarios = db.horarios.filter(h => h.cursoId !== id);
-        guardarDB();
-        renderCursos();
+    async function eliminarCurso(id) {
+        const c = buscarCurso(id);
+        if (!c) return;
+        const clases = db.horarios.filter(h => Number(h.idCurso) === Number(id)).length;
+        const aviso = clases > 0
+            ? `El curso "${c.curso}" tiene ${clases} clase(s) programada(s) que también se eliminarán. ¿Continuar?`
+            : `¿Eliminar el curso "${c.curso}"?`;
+        if (!confirm(aviso)) return;
+
+        try {
+            await API.eliminarCurso(id);
+            await recargarTodo();
+        } catch (err) {
+            mostrarMensaje('mensaje-curso', err.message);
+        }
     }
 
     function renderCursos() {
@@ -155,43 +275,46 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${escapeHTML(c.grado)}</td>
                     <td>${escapeHTML(c.curso)}</td>
                     <td>${badgeJornada(c.jornada)}</td>
-                    <td>${c.numEstudiantes}</td>
+                    <td>${c.numero_estudiantes ?? 0}</td>
                     <td>
-                        <button class="btn btn-warning btn-sm" data-accion="editar-curso" data-id="${c.id}">Editar</button>
-                        <button class="btn btn-danger btn-sm" data-accion="eliminar-curso" data-id="${c.id}">Eliminar</button>
+                        <button class="btn btn-warning btn-sm" data-accion="editar-curso" data-id="${c.idCurso}">Editar</button>
+                        <button class="btn btn-danger btn-sm" data-accion="eliminar-curso" data-id="${c.idCurso}">Eliminar</button>
                     </td>
-                </tr>
-            `).join('');
+                </tr>`).join('');
         }
         refrescarSelectsHorario();
     }
-
-    // ----------------------------------------------------------------------
     // 4. CRUD Asignaturas
-    // ----------------------------------------------------------------------
     const formAsignatura = $('form-asignatura');
 
     formAsignatura.addEventListener('submit', (e) => {
         e.preventDefault();
+        mostrarMensaje('mensaje-asignatura', '');
+
         const id = $('asignatura-id').value;
         const datos = {
-            nombre: $('asignatura-nombre').value.trim(),
-            intensidadHoraria: parseInt($('asignatura-intensidad').value, 10) || 0
+            nombre_asignatura: $('asignatura-nombre').value.trim(),
+            intensidad_horaria: parseInt($('asignatura-intensidad').value, 10) || 0
         };
-        if (!datos.nombre || datos.intensidadHoraria <= 0) {
-            alert('Ingrese nombre e intensidad horaria válida.');
+        if (!datos.nombre_asignatura || datos.intensidad_horaria <= 0) {
+            mostrarMensaje('mensaje-asignatura', 'Ingrese nombre e intensidad horaria mayor que 0.');
             return;
         }
 
-        if (id) {
-            Object.assign(buscarAsignatura(parseInt(id, 10)), datos);
-        } else {
-            db.asignaturas.push(Object.assign({ id: nuevoId() }, datos));
-        }
-
-        guardarDB();
-        resetFormAsignatura();
-        renderAsignaturas();
+        conBoton('btn-guardar-asignatura', 'Guardando...', async () => {
+            try {
+                if (id) {
+                    await API.actualizarAsignatura(parseInt(id, 10), datos);
+                } else {
+                    await API.crearAsignatura(datos);
+                }
+                await recargarTodo();
+                resetFormAsignatura();
+                mostrarMensaje('mensaje-asignatura', id ? 'Asignatura actualizada.' : 'Asignatura creada.', 'success');
+            } catch (err) {
+                mostrarMensaje('mensaje-asignatura', err.message);
+            }
+        });
     });
 
     $('btn-cancelar-asignatura').addEventListener('click', resetFormAsignatura);
@@ -207,25 +330,31 @@ document.addEventListener('DOMContentLoaded', () => {
     function editarAsignatura(id) {
         const a = buscarAsignatura(id);
         if (!a) return;
-        $('asignatura-id').value = a.id;
-        $('asignatura-nombre').value = a.nombre;
-        $('asignatura-intensidad').value = a.intensidadHoraria;
-        $('titulo-form-asignatura').textContent = 'Editar Asignatura';
+        mostrarMensaje('mensaje-asignatura', '');
+        $('asignatura-id').value = a.idAsignatura;
+        $('asignatura-nombre').value = a.nombre_asignatura || '';
+        $('asignatura-intensidad').value = a.intensidad_horaria ?? '';
+        $('titulo-form-asignatura').textContent = `Editar Asignatura: ${a.nombre_asignatura}`;
         $('btn-guardar-asignatura').textContent = 'Actualizar Asignatura';
         $('btn-cancelar-asignatura').style.display = 'inline-block';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        formAsignatura.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    function eliminarAsignatura(id) {
-        const usada = db.horarios.some(h => h.asignaturaId === id);
-        if (usada && !confirm('Esta asignatura tiene clases programadas que también se eliminarán. ¿Continuar?')) return;
-        if (!usada && !confirm('¿Eliminar esta asignatura?')) return;
-        db.asignaturas = db.asignaturas.filter(a => a.id !== id);
-        db.horarios = db.horarios.filter(h => h.asignaturaId !== id);
-        db.docentes.forEach(d => { d.asignaturas = (d.asignaturas || []).filter(x => x !== id); });
-        guardarDB();
-        renderAsignaturas();
-        renderDocentes();
+    async function eliminarAsignatura(id) {
+        const a = buscarAsignatura(id);
+        if (!a) return;
+        const clases = db.horarios.filter(h => Number(h.idAsignatura) === Number(id)).length;
+        const aviso = clases > 0
+            ? `La asignatura "${a.nombre_asignatura}" tiene ${clases} clase(s) programada(s) que también se eliminarán. ¿Continuar?`
+            : `¿Eliminar la asignatura "${a.nombre_asignatura}"?`;
+        if (!confirm(aviso)) return;
+
+        try {
+            await API.eliminarAsignatura(id);
+            await recargarTodo();
+        } catch (err) {
+            mostrarMensaje('mensaje-asignatura', err.message);
+        }
     }
 
     function renderAsignaturas() {
@@ -235,67 +364,154 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             tbody.innerHTML = db.asignaturas.map(a => `
                 <tr>
-                    <td>${escapeHTML(a.nombre)}</td>
-                    <td>${a.intensidadHoraria} h/semana</td>
+                    <td>${escapeHTML(a.nombre_asignatura)}<br><small class="stat-label">Aplica a ${escapeHTML(textoGrados(a))}</small></td>
+                    <td>${a.intensidad_horaria ?? 0} h/semana</td>
                     <td>
-                        <button class="btn btn-warning btn-sm" data-accion="editar-asignatura" data-id="${a.id}">Editar</button>
-                        <button class="btn btn-danger btn-sm" data-accion="eliminar-asignatura" data-id="${a.id}">Eliminar</button>
+                        <button class="btn btn-warning btn-sm" data-accion="editar-asignatura" data-id="${a.idAsignatura}">Editar</button>
+                        <button class="btn btn-danger btn-sm" data-accion="eliminar-asignatura" data-id="${a.idAsignatura}">Eliminar</button>
                     </td>
-                </tr>
-            `).join('');
+                </tr>`).join('');
         }
         renderCheckboxesAsignaturas();
         refrescarSelectsHorario();
     }
-
-    // ----------------------------------------------------------------------
     // 5. CRUD Docentes
-    // ----------------------------------------------------------------------
     const formDocente = $('form-docente');
+    function asignaturasDeDocente(idDocente) {
+        const ids = new Set();
+        db.perfiles
+            .filter(p => Number(p.idDocente) === Number(idDocente))
+            .forEach(p => ids.add(Number(p.idAsignatura)));
+        db.asignaciones
+            .filter(a => Number(a.idDocente) === Number(idDocente))
+            .forEach(a => ids.add(Number(a.idAsignatura)));
+        return Array.from(ids);
+    }
 
-    function renderCheckboxesAsignaturas(seleccionadas) {
+    /** Docentes que pueden dictar la asignatura indicada. */
+    function docentesDeAsignatura(idAsignatura) {
+        return db.docentes.filter(d =>
+            asignaturasDeDocente(d.idDocente).includes(Number(idAsignatura)));
+    }
+
+    function renderCheckboxesAsignaturas(seleccionadas, idDocente) {
         const cont = $('docente-asignaturas');
-        const sel = seleccionadas || [];
+        const sel = (seleccionadas || []).map(Number);
         if (db.asignaturas.length === 0) {
             cont.innerHTML = '<span class="stat-label">Primero registre asignaturas.</span>';
             return;
         }
-        cont.innerHTML = db.asignaturas.map(a => `
-            <label>
-                <input type="checkbox" value="${a.id}" ${sel.includes(a.id) ? 'checked' : ''}>
-                ${escapeHTML(a.nombre)}
-            </label>
-        `).join('');
+
+        // Asignaturas con clases ya programadas: no se pueden desmarcar.
+        const conClases = new Set(
+            idDocente
+                ? db.asignaciones
+                    .filter(a => Number(a.idDocente) === Number(idDocente) && Number(a.total_horarios) > 0)
+                    .map(a => Number(a.idAsignatura))
+                : []
+        );
+
+        cont.innerHTML = db.asignaturas.map(a => {
+            const idA = Number(a.idAsignatura);
+            const bloqueada = conClases.has(idA);
+            return `
+            <label class="${bloqueada ? 'chk-bloqueada' : ''}"
+                   ${bloqueada ? 'title="Tiene clases programadas: elimínelas primero para poder quitarla."' : ''}>
+                <input type="checkbox" value="${a.idAsignatura}"
+                    ${sel.includes(idA) || bloqueada ? 'checked' : ''}
+                    ${bloqueada ? 'disabled' : ''}>
+                ${escapeHTML(a.nombre_asignatura)}${bloqueada ? ' <small>(en uso)</small>' : ''}
+            </label>`;
+        }).join('');
+    }
+
+    function diasSeleccionados() {
+        return Array.from($('docente-dias').querySelectorAll('input:checked')).map(i => i.value);
+    }
+
+    function marcarDias(dias) {
+        const set = new Set((dias || []).map(d => String(d).trim()));
+        $('docente-dias').querySelectorAll('input').forEach(i => { i.checked = set.has(i.value); });
     }
 
     formDocente.addEventListener('submit', (e) => {
         e.preventDefault();
+        mostrarMensaje('mensaje-docente', '');
+
         const id = $('docente-id').value;
-        const asignaturas = Array.from($('docente-asignaturas').querySelectorAll('input:checked'))
-            .map(i => parseInt(i.value, 10));
+        const dias = diasSeleccionados();
         const datos = {
-            nombre: $('docente-nombre').value.trim(),
+            nombres: $('docente-nombres').value.trim(),
+            apellidos: $('docente-apellidos').value.trim(),
             documento: $('docente-documento').value.trim(),
-            email: $('docente-email').value.trim(),
-            telefono: $('docente-telefono').value.trim(),
-            asignaturas: asignaturas,
-            disponibilidad: $('docente-disponibilidad').value.trim()
+            tipo_contrato: $('docente-contrato').value,
+            jornada: $('docente-jornada').value,
+            dias_trabajo: dias
         };
-        if (!datos.nombre || !datos.documento) {
-            alert('Ingrese al menos nombre y documento del docente.');
+
+        if (!datos.nombres || !datos.apellidos || !datos.documento) {
+            mostrarMensaje('mensaje-docente', 'Ingrese nombres, apellidos y documento del docente.');
+            return;
+        }
+        if (dias.length === 0) {
+            mostrarMensaje('mensaje-docente', 'Seleccione al menos un día de trabajo.');
             return;
         }
 
-        if (id) {
-            Object.assign(buscarDocente(parseInt(id, 10)), datos);
-        } else {
-            db.docentes.push(Object.assign({ id: nuevoId() }, datos));
+        // Se incluyen las deshabilitadas (las "en uso"): siguen formando parte
+        // del perfil aunque el navegador no las envíe en el formulario.
+        const asignaturasSel = Array.from($('docente-asignaturas').querySelectorAll('input:checked'))
+            .map(i => parseInt(i.value, 10));
+
+        conBoton('btn-guardar-docente', 'Guardando...', async () => {
+            try {
+                const guardado = id
+                    ? await API.actualizarDocente(parseInt(id, 10), datos)
+                    : await API.crearDocente(datos);
+
+                const bloqueadas = await sincronizarAsignaturasDocente(guardado.idDocente, asignaturasSel);
+                await recargarTodo();
+                resetFormDocente();
+
+                if (bloqueadas.length) {
+                    mostrarMensaje('mensaje-docente',
+                        `Docente guardado. No se pudo quitar ${bloqueadas.join(', ')}: ` +
+                        `tiene clases programadas. Elimine primero esas clases en Horarios.`, 'warning');
+                } else {
+                    mostrarMensaje('mensaje-docente', id ? 'Docente actualizado.' : 'Docente creado.', 'success');
+                }
+            } catch (err) {
+                mostrarMensaje('mensaje-docente', err.message);
+            }
+        });
+    });
+    async function sincronizarAsignaturasDocente(idDocente, idsAsignaturas) {
+        const deseadas = new Set(idsAsignaturas.map(Number));
+
+        // Las que tienen clases reales se conservan aunque se hayan desmarcado.
+        const conClases = db.asignaciones
+            .filter(a => Number(a.idDocente) === Number(idDocente) && Number(a.total_horarios) > 0)
+            .map(a => Number(a.idAsignatura));
+
+        const bloqueadas = conClases.filter(idA => !deseadas.has(idA));
+        bloqueadas.forEach(idA => deseadas.add(idA));
+
+        await API.guardarAsignaturasDocente(idDocente, Array.from(deseadas));
+
+        // Limpiar asignaciones sin clases cuya asignatura ya no está en el perfil.
+        for (const a of db.asignaciones) {
+            if (Number(a.idDocente) !== Number(idDocente)) continue;
+            if (deseadas.has(Number(a.idAsignatura))) continue;
+            if (Number(a.total_horarios) > 0) continue;
+            try {
+                await API.eliminarAsignacion(a.idAsignacion);
+            } catch (e) {
+                console.warn('No se pudo eliminar la asignación', a.idAsignacion, e.message);
+            }
         }
 
-        guardarDB();
-        resetFormDocente();
-        renderDocentes();
-    });
+        return bloqueadas.map(idA => nombreAsignatura(buscarAsignatura(idA))).filter(Boolean);
+    }
 
     $('btn-cancelar-docente').addEventListener('click', resetFormDocente);
 
@@ -303,6 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formDocente.reset();
         $('docente-id').value = '';
         renderCheckboxesAsignaturas();
+        marcarDias([]);
         $('titulo-form-docente').textContent = 'Registrar Docente';
         $('btn-guardar-docente').textContent = 'Guardar Docente';
         $('btn-cancelar-docente').style.display = 'none';
@@ -311,67 +528,76 @@ document.addEventListener('DOMContentLoaded', () => {
     function editarDocente(id) {
         const d = buscarDocente(id);
         if (!d) return;
-        $('docente-id').value = d.id;
-        $('docente-nombre').value = d.nombre;
-        $('docente-documento').value = d.documento;
-        $('docente-email').value = d.email || '';
-        $('docente-telefono').value = d.telefono || '';
-        $('docente-disponibilidad').value = d.disponibilidad || '';
-        renderCheckboxesAsignaturas(d.asignaturas || []);
-        $('titulo-form-docente').textContent = 'Editar Docente';
+        mostrarMensaje('mensaje-docente', '');
+        $('docente-id').value = d.idDocente;
+        $('docente-nombres').value = d.nombres || '';
+        $('docente-apellidos').value = d.apellidos || '';
+        $('docente-documento').value = d.documento || '';
+        $('docente-contrato').value = d.tipo_contrato || 'Tiempo Completo';
+        $('docente-jornada').value = d.jornada || 'Mañana';
+        marcarDias(d.dias_trabajo || []);
+        renderCheckboxesAsignaturas(asignaturasDeDocente(d.idDocente), d.idDocente);
+        $('titulo-form-docente').textContent = `Editar Docente: ${nombreDocente(d)}`;
         $('btn-guardar-docente').textContent = 'Actualizar Docente';
         $('btn-cancelar-docente').style.display = 'inline-block';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        formDocente.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    function eliminarDocente(id) {
-        const usado = db.horarios.some(h => h.docenteId === id);
-        if (usado && !confirm('Este docente tiene clases programadas que también se eliminarán. ¿Continuar?')) return;
-        if (!usado && !confirm('¿Eliminar este docente?')) return;
-        db.docentes = db.docentes.filter(d => d.id !== id);
-        db.horarios = db.horarios.filter(h => h.docenteId !== id);
-        guardarDB();
-        renderDocentes();
+    async function eliminarDocente(id) {
+        const d = buscarDocente(id);
+        if (!d) return;
+        const clases = db.horarios.filter(h => Number(h.idDocente) === Number(id)).length;
+        const aviso = clases > 0
+            ? `El docente "${nombreDocente(d)}" tiene ${clases} clase(s) programada(s) que también se eliminarán. ¿Continuar?`
+            : `¿Eliminar al docente "${nombreDocente(d)}"?`;
+        if (!confirm(aviso)) return;
+
+        try {
+            await API.eliminarDocente(id);
+            await recargarTodo();
+        } catch (err) {
+            mostrarMensaje('mensaje-docente', err.message);
+        }
     }
 
-    function nombresAsignaturas(ids) {
-        return (ids || []).map(i => {
-            const a = buscarAsignatura(i);
-            return a ? escapeHTML(a.nombre) : '';
-        }).filter(Boolean).join(', ') || '<span class="stat-label">—</span>';
+    function listaAsignaturasDocente(idDocente) {
+        const nombres = asignaturasDeDocente(idDocente)
+            .map(idA => nombreAsignatura(buscarAsignatura(idA)))
+            .filter(Boolean)
+            .sort();
+        return nombres.length ? escapeHTML(nombres.join(', ')) : GUION;
     }
 
     function renderDocentes() {
         const tbody = $('tabla-docentes');
         if (db.docentes.length === 0) {
-            tbody.innerHTML = filaVacia(6, 'No hay docentes registrados.');
-        } else {
-            tbody.innerHTML = db.docentes.map(d => `
-                <tr>
-                    <td>${escapeHTML(d.nombre)}</td>
-                    <td>${escapeHTML(d.documento)}</td>
-                    <td>${escapeHTML(d.email || '')}<br>${escapeHTML(d.telefono || '')}</td>
-                    <td>${nombresAsignaturas(d.asignaturas)}</td>
-                    <td>${escapeHTML(d.disponibilidad || '') || '<span class="stat-label">—</span>'}</td>
-                    <td>
-                        <button class="btn btn-warning btn-sm" data-accion="editar-docente" data-id="${d.id}">Editar</button>
-                        <button class="btn btn-danger btn-sm" data-accion="eliminar-docente" data-id="${d.id}">Eliminar</button>
-                    </td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = filaVacia(7, 'No hay docentes registrados.');
+            refrescarSelectsHorario();
+            return;
         }
+        tbody.innerHTML = db.docentes.map(d => {
+            const dias = Array.isArray(d.dias_trabajo) ? d.dias_trabajo : [];
+            const disponibilidad = dias.length
+                ? `${escapeHTML(dias.join(', '))}<br><small class="stat-label">Jornada ${escapeHTML(d.jornada || '')}</small>`
+                : GUION;
+            return `
+                <tr>
+                    <td>${escapeHTML(nombreDocente(d)) || GUION}</td>
+                    <td>${escapeHTML(d.documento) || GUION}</td>
+                    <td>${escapeHTML(d.tipo_contrato) || GUION}</td>
+                    <td>${barraCarga(buscarCarga(d.idDocente))}</td>
+                    <td>${listaAsignaturasDocente(d.idDocente)}</td>
+                    <td>${disponibilidad}</td>
+                    <td>
+                        <button class="btn btn-warning btn-sm" data-accion="editar-docente" data-id="${d.idDocente}">Editar</button>
+                        <button class="btn btn-danger btn-sm" data-accion="eliminar-docente" data-id="${d.idDocente}">Eliminar</button>
+                    </td>
+                </tr>`;
+        }).join('');
         refrescarSelectsHorario();
     }
-
-    // ----------------------------------------------------------------------
-    // 6. CRUD Horarios + detección de conflictos
-    // ----------------------------------------------------------------------
+    // 6. CRUD Horarios + validación académica y de conflictos
     const formHorario = $('form-horario');
-
-    function opcionesSelect(lista, textoFn, placeholder) {
-        return `<option value="">${placeholder}</option>` +
-            lista.map(item => `<option value="${item.id}">${escapeHTML(textoFn(item))}</option>`).join('');
-    }
 
     function refrescarSelectsHorario() {
         const selCurso = $('horario-curso');
@@ -380,10 +606,326 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!selCurso) return;
 
         const vc = selCurso.value, va = selAsig.value, vd = selDoc.value;
-        selCurso.innerHTML = opcionesSelect(db.cursos, c => `${c.curso} (${c.jornada})`, 'Seleccione curso...');
-        selAsig.innerHTML = opcionesSelect(db.asignaturas, a => a.nombre, 'Seleccione asignatura...');
-        selDoc.innerHTML = opcionesSelect(db.docentes, d => d.nombre, 'Seleccione docente...');
-        selCurso.value = vc; selAsig.value = va; selDoc.value = vd;
+
+        selCurso.innerHTML = '<option value="">Seleccione curso...</option>' +
+            db.cursos.map(c =>
+                `<option value="${c.idCurso}">${escapeHTML(`${c.curso} — ${c.jornada}`)}</option>`).join('');
+
+        selCurso.value = vc;
+        refrescarAsignaturasSegunCurso(va);
+        refrescarDocentesSegunAsignatura(vd);
+    }
+    function refrescarDocentesSegunAsignatura(valorPrevio) {
+        const selAsig = $('horario-asignatura');
+        const selDoc = $('horario-docente');
+        if (!selDoc) return;
+
+        const idAsig = parseInt(selAsig.value, 10);
+        const asignatura = buscarAsignatura(idAsig);
+        const aptos = idAsig ? docentesDeAsignatura(idAsig) : db.docentes;
+
+        const placeholder = !idAsig
+            ? 'Primero elija la asignatura...'
+            : (aptos.length ? 'Seleccione docente...' : 'Ningún docente dicta esta asignatura');
+
+        selDoc.innerHTML = `<option value="">${escapeHTML(placeholder)}</option>` +
+            aptos.map(d => {
+                const dias = Array.isArray(d.dias_trabajo) ? d.dias_trabajo : [];
+                const detalle = dias.length ? ` (${dias.length} día(s), ${d.jornada || ''})` : '';
+                return `<option value="${d.idDocente}">${escapeHTML(nombreDocente(d) + detalle)}</option>`;
+            }).join('');
+
+        if (valorPrevio && aptos.some(d => String(d.idDocente) === String(valorPrevio))) {
+            selDoc.value = valorPrevio;
+        }
+
+        const aviso = $('aviso-docentes');
+        if (aviso) {
+            if (idAsig && aptos.length === 0) {
+                aviso.innerHTML = `<small class="stat-label">Ningún docente tiene ` +
+                    `${escapeHTML(nombreAsignatura(asignatura))} en su perfil. ` +
+                    `Agréguesela a un docente en la pestaña Docentes.</small>`;
+            } else if (idAsig) {
+                const ocultos = db.docentes.length - aptos.length;
+                aviso.innerHTML = ocultos > 0
+                    ? `<small class="stat-label">${aptos.length} docente(s) apto(s); ` +
+                      `${ocultos} no dictan esta asignatura.</small>`
+                    : '';
+            } else {
+                aviso.innerHTML = '';
+            }
+        }
+
+        refrescarDisponibilidadDocente();
+    }
+    function refrescarDisponibilidadDocente() {
+        const selDoc = $('horario-docente');
+        const selDia = $('horario-dia');
+        if (!selDia) return;
+
+        const docente = buscarDocente(selDoc.value);
+        const dias = docente && Array.isArray(docente.dias_trabajo) ? docente.dias_trabajo : [];
+        const valorPrevio = selDia.value;
+
+        const disponibles = dias.length ? dias : DIAS_LECTIVOS;
+        const placeholder = docente
+            ? (dias.length ? 'Días que trabaja el docente...' : 'Seleccione día...')
+            : 'Seleccione día...';
+
+        selDia.innerHTML = `<option value="">${escapeHTML(placeholder)}</option>` +
+            disponibles.map(d =>
+                `<option value="${d}">${escapeHTML(ETIQUETA_DIA[d] || d)}</option>`).join('');
+
+        if (valorPrevio && disponibles.includes(valorPrevio)) {
+            selDia.value = valorPrevio;
+        }
+
+        // Acotar las horas a la jornada del docente y sugerir un bloque válido.
+        const franja = FRANJA_JORNADA[docente && docente.jornada] || FRANJA_JORNADA.Mixta;
+        const ini = $('horario-inicio'), fin = $('horario-fin');
+        if (ini && fin) {
+            ini.min = franja.min; ini.max = franja.max;
+            fin.min = franja.min; fin.max = franja.max;
+        }
+
+        const aviso = $('aviso-disponibilidad');
+        if (aviso) {
+            // Además de los días y la franja, se recuerda cuántas horas le quedan
+            // libres antes de llegar al tope de su contrato.
+            let carga = '';
+            if (docente) {
+                const c = buscarCarga(docente.idDocente);
+                if (c) {
+                    carga = c.excede
+                        ? `<br><small class="carga-texto excede">Ya supera su tope: ` +
+                          `${textoHoras(c.horas)} de ${c.tope_horas} h.</small>`
+                        : `<br><small class="carga-texto ${nivelCarga(c)}">Carga actual ` +
+                          `${textoHoras(c.horas)} de ${c.tope_horas} h · ` +
+                          `quedan ${textoHoras(c.horas_disponibles)} disponibles.</small>`;
+                }
+            }
+            aviso.innerHTML = docente
+                ? `<small class="stat-label">${escapeHTML(nombreDocente(docente))} trabaja ` +
+                  `${dias.length ? escapeHTML(dias.join(', ')) : 'sin días registrados'} · ` +
+                  `jornada ${escapeHTML(docente.jornada || '—')} (${franja.min}–${franja.max}).</small>` + carga
+                : '';
+        }
+    }
+    function refrescarAsignaturasSegunCurso(valorPrevio) {
+        const selCurso = $('horario-curso');
+        const selAsig = $('horario-asignatura');
+        if (!selAsig) return;
+
+        const curso = buscarCurso(selCurso.value);
+        const disponibles = curso
+            ? db.asignaturas.filter(a => asignaturaAplicaACurso(a, curso))
+            : db.asignaturas;
+
+        const placeholder = curso
+            ? `Asignaturas de grado ${escapeHTML(curso.grado)}...`
+            : 'Seleccione asignatura...';
+
+        selAsig.innerHTML = `<option value="">${placeholder}</option>` +
+            disponibles.map(a =>
+                `<option value="${a.idAsignatura}">${escapeHTML(a.nombre_asignatura)}</option>`).join('');
+
+        // Conservar la selección previa solo si sigue siendo válida.
+        if (valorPrevio && disponibles.some(a => String(a.idAsignatura) === String(valorPrevio))) {
+            selAsig.value = valorPrevio;
+        }
+
+        const ocultas = db.asignaturas.length - disponibles.length;
+        const aviso = $('aviso-asignaturas');
+        if (aviso) {
+            aviso.innerHTML = (curso && ocultas > 0)
+                ? `<small class="stat-label">${ocultas} asignatura(s) no aplican al grado ${escapeHTML(curso.grado)}.</small>`
+                : '';
+        }
+    }
+
+    // Cadena de dependencias del formulario:
+    //   curso -> asignaturas válidas para el grado
+    //   asignatura -> docentes aptos
+    //   docente -> días y franja horaria disponibles
+    $('horario-curso').addEventListener('change', () => {
+        refrescarAsignaturasSegunCurso($('horario-asignatura').value);
+        refrescarDocentesSegunAsignatura($('horario-docente').value);
+    });
+
+    $('horario-asignatura').addEventListener('change', () => {
+        refrescarDocentesSegunAsignatura($('horario-docente').value);
+    });
+
+    $('horario-docente').addEventListener('change', refrescarDisponibilidadDocente);
+
+    formHorario.addEventListener('submit', (e) => {
+        e.preventDefault();
+        mostrarMensaje('mensaje-horario', '');
+
+        const id = $('horario-id').value;
+        const idCurso = parseInt($('horario-curso').value, 10);
+        const idAsignatura = parseInt($('horario-asignatura').value, 10);
+        const idDocente = parseInt($('horario-docente').value, 10);
+        const dia = $('horario-dia').value;
+        const horaInicio = $('horario-inicio').value;
+        const horaFin = $('horario-fin').value;
+
+        if (!idCurso || !idAsignatura || !idDocente || !dia || !horaInicio || !horaFin) {
+            mostrarMensaje('mensaje-horario', 'Complete todos los campos.');
+            return;
+        }
+        if (horaInicio >= horaFin) {
+            mostrarMensaje('mensaje-horario', 'La hora de inicio debe ser anterior a la hora de fin.');
+            return;
+        }
+
+        // Regla académica: la asignatura debe corresponder al grado del curso.
+        const curso = buscarCurso(idCurso);
+        const asignatura = buscarAsignatura(idAsignatura);
+        if (!asignaturaAplicaACurso(asignatura, curso)) {
+            mostrarMensaje('mensaje-horario',
+                `${nombreAsignatura(asignatura)} solo se dicta en ${textoGrados(asignatura)}. ` +
+                `El curso ${curso.curso} es de grado ${curso.grado}.`);
+            return;
+        }
+
+        // El docente debe estar habilitado para dictar la asignatura.
+        const docente = buscarDocente(idDocente);
+        if (!asignaturasDeDocente(idDocente).includes(idAsignatura)) {
+            mostrarMensaje('mensaje-horario',
+                `${nombreDocente(docente)} no tiene ${nombreAsignatura(asignatura)} entre sus ` +
+                `asignaturas. Agréguesela en la pestaña Docentes o elija otro docente.`);
+            return;
+        }
+
+        // El docente debe trabajar ese día.
+        const dias = Array.isArray(docente.dias_trabajo) ? docente.dias_trabajo : [];
+        if (dias.length && !dias.includes(dia)) {
+            if (!confirm(`${nombreDocente(docente)} no trabaja los ${ETIQUETA_DIA[dia] || dia} (días: ${dias.join(', ')}).\n\n¿Programar de todos modos?`)) {
+                return;
+            }
+        }
+
+        // La clase debería caber en la jornada del docente.
+        const franja = FRANJA_JORNADA[docente.jornada];
+        if (franja && (horaInicio < franja.min || horaFin > franja.max)) {
+            if (!confirm(`La jornada ${docente.jornada} de ${nombreDocente(docente)} va de ` +
+                `${franja.min} a ${franja.max}, y la clase es de ${horaInicio} a ${horaFin}.\n\n` +
+                `¿Programar de todos modos?`)) {
+                return;
+            }
+        }
+
+        const datos = {
+            idCurso, idAsignatura, idDocente,
+            dia_semana: dia,
+            hora_inicio: horaInicio,
+            hora_fin: horaFin
+        };
+
+        conBoton('btn-guardar-horario', 'Guardando...', async () => {
+            try {
+                await guardarHorario(id, datos, false);
+            } catch (err) {
+                // 409 por superar el tope de horas del contrato; se ofrece forzar.
+                if (err.codigo === 409 && err.extra.exceso_carga) {
+                    const x = err.extra.exceso_carga;
+                    const mensaje =
+                        `${x.docente} tiene un contrato de ${x.tipo_contrato}, con tope de ${x.tope_horas} h semanales.
+
+` +
+                        `Horas actuales: ${x.horas_actuales} h
+` +
+                        `Esta clase suma: ${x.horas_de_la_clase} h
+` +
+                        `Quedaría en: ${x.horas_resultantes} h (${x.horas_exceso} h por encima del tope)
+
+` +
+                        `¿Programar de todos modos?`;
+                    if (confirm(mensaje)) {
+                        try {
+                            await guardarHorario(id, datos, true);
+                        } catch (e2) {
+                            mostrarMensaje('mensaje-horario', e2.message);
+                        }
+                    }
+                    return;
+                }
+                // 409 = conflicto de horario; se ofrece forzar.
+                if (err.codigo === 409 && Array.isArray(err.extra.conflictos)) {
+                    const detalle = err.extra.conflictos.map(c =>
+                        `${c.motivo === 'Docente' ? 'El docente' : 'El curso'} ya tiene ` +
+                        `${c.asignatura} el ${c.dia_semana} de ${c.hora_inicio} a ${c.hora_fin}`
+                    ).join('\n');
+                    if (confirm(`Conflicto detectado:\n${detalle}\n\n¿Programar de todos modos?`)) {
+                        try {
+                            await guardarHorario(id, datos, true);
+                        } catch (e2) {
+                            mostrarMensaje('mensaje-horario', e2.message);
+                        }
+                    }
+                    return;
+                }
+                mostrarMensaje('mensaje-horario', err.message);
+            }
+        });
+    });
+
+    async function guardarHorario(id, datos, forzar) {
+        if (id) {
+            await API.actualizarHorario(parseInt(id, 10), datos, forzar);
+        } else {
+            await API.crearHorario(datos, forzar);
+        }
+        await recargarTodo();
+        resetFormHorario();
+        mostrarMensaje('mensaje-horario', id ? 'Clase actualizada.' : 'Clase programada.', 'success');
+    }
+
+    $('btn-cancelar-horario').addEventListener('click', resetFormHorario);
+
+    function resetFormHorario() {
+        formHorario.reset();
+        $('horario-id').value = '';
+        $('titulo-form-horario').textContent = 'Programar Clase';
+        $('btn-guardar-horario').textContent = 'Programar Clase';
+        $('btn-cancelar-horario').style.display = 'none';
+        refrescarSelectsHorario();
+    }
+
+    function editarHorario(id) {
+        const h = buscarHorario(id);
+        if (!h) return;
+        mostrarMensaje('mensaje-horario', '');
+
+        // El orden importa: cada select depende del anterior.
+        $('horario-id').value = h.idHorario;
+        $('horario-curso').value = h.idCurso;
+        refrescarAsignaturasSegunCurso(h.idAsignatura);
+        $('horario-asignatura').value = h.idAsignatura;
+        refrescarDocentesSegunAsignatura(h.idDocente);
+        $('horario-docente').value = h.idDocente;
+        refrescarDisponibilidadDocente();
+        $('horario-dia').value = h.dia_semana;
+        $('horario-inicio').value = String(h.hora_inicio).slice(0, 5);
+        $('horario-fin').value = String(h.hora_fin).slice(0, 5);
+
+        $('titulo-form-horario').textContent = `Editar Clase: ${h.asignatura} — ${h.curso}`;
+        $('btn-guardar-horario').textContent = 'Actualizar Clase';
+        $('btn-cancelar-horario').style.display = 'inline-block';
+        formHorario.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    async function eliminarHorario(id) {
+        const h = buscarHorario(id);
+        if (!h) return;
+        if (!confirm(`¿Eliminar la clase de ${h.asignatura} (${h.curso}, ${h.dia_semana} ${String(h.hora_inicio).slice(0, 5)})?`)) return;
+        try {
+            await API.eliminarHorario(id);
+            await recargarTodo();
+        } catch (err) {
+            mostrarMensaje('mensaje-horario', err.message);
+        }
     }
 
     // Dos rangos [i1,f1) y [i2,f2) se solapan si i1 < f2 && i2 < f1
@@ -391,134 +933,232 @@ document.addEventListener('DOMContentLoaded', () => {
         return i1 < f2 && i2 < f1;
     }
 
-    // Devuelve la lista de horarios que chocan con el horario dado
-    function conflictosDe(h, ignorarId) {
+    /** Horarios que chocan con el indicado (mismo docente o mismo curso, mismo día). */
+    function conflictosDe(h) {
         return db.horarios.filter(o => {
-            if (o.id === ignorarId) return false;
-            if (o.dia !== h.dia) return false;
-            if (!seSolapan(h.horaInicio, h.horaFin, o.horaInicio, o.horaFin)) return false;
-            return o.docenteId === h.docenteId || o.cursoId === h.cursoId;
+            if (Number(o.idHorario) === Number(h.idHorario)) return false;
+            if (o.dia_semana !== h.dia_semana) return false;
+            if (!seSolapan(h.hora_inicio, h.hora_fin, o.hora_inicio, o.hora_fin)) return false;
+            return Number(o.idDocente) === Number(h.idDocente) ||
+                   Number(o.idCurso) === Number(h.idCurso);
         });
     }
 
-    formHorario.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const id = $('horario-id').value;
-        const h = {
-            cursoId: parseInt($('horario-curso').value, 10),
-            asignaturaId: parseInt($('horario-asignatura').value, 10),
-            docenteId: parseInt($('horario-docente').value, 10),
-            dia: $('horario-dia').value,
-            horaInicio: $('horario-inicio').value,
-            horaFin: $('horario-fin').value
-        };
-        const msg = $('mensaje-horario');
-        msg.innerHTML = '';
-
-        if (!h.cursoId || !h.asignaturaId || !h.docenteId || !h.dia || !h.horaInicio || !h.horaFin) {
-            msg.innerHTML = '<div class="alert alert-danger">Complete todos los campos.</div>';
-            return;
-        }
-        if (h.horaInicio >= h.horaFin) {
-            msg.innerHTML = '<div class="alert alert-danger">La hora de inicio debe ser anterior a la hora de fin.</div>';
-            return;
-        }
-
-        const choques = conflictosDe(h, id ? parseInt(id, 10) : null);
-        if (choques.length > 0) {
-            const detalle = choques.map(c => {
-                const tipo = c.docenteId === h.docenteId ? 'el docente' : 'el curso';
-                return `${tipo} ya tiene clase el ${c.dia} de ${c.horaInicio} a ${c.horaFin}`;
-            }).join('; ');
-            if (!confirm(`Conflicto detectado: ${detalle}.\n\n¿Desea programarla de todos modos?`)) return;
-        }
-
-        if (id) {
-            Object.assign(db.horarios.find(x => x.id === parseInt(id, 10)), h);
-        } else {
-            db.horarios.push(Object.assign({ id: nuevoId() }, h));
-        }
-
-        guardarDB();
-        resetFormHorario();
-        renderHorarios();
-    });
-
-    $('btn-cancelar-horario').addEventListener('click', resetFormHorario);
-
-    function resetFormHorario() {
-        formHorario.reset();
-        $('horario-id').value = '';
-        $('mensaje-horario').innerHTML = '';
-        $('titulo-form-horario').textContent = 'Programar Clase';
-        $('btn-guardar-horario').textContent = 'Programar Clase';
-        $('btn-cancelar-horario').style.display = 'none';
-    }
-
-    function editarHorario(id) {
-        const h = db.horarios.find(x => x.id === id);
-        if (!h) return;
-        refrescarSelectsHorario();
-        $('horario-id').value = h.id;
-        $('horario-curso').value = h.cursoId;
-        $('horario-asignatura').value = h.asignaturaId;
-        $('horario-docente').value = h.docenteId;
-        $('horario-dia').value = h.dia;
-        $('horario-inicio').value = h.horaInicio;
-        $('horario-fin').value = h.horaFin;
-        $('titulo-form-horario').textContent = 'Editar Clase';
-        $('btn-guardar-horario').textContent = 'Actualizar Clase';
-        $('btn-cancelar-horario').style.display = 'inline-block';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function eliminarHorario(id) {
-        if (!confirm('¿Eliminar esta clase programada?')) return;
-        db.horarios = db.horarios.filter(h => h.id !== id);
-        guardarDB();
-        renderHorarios();
-    }
+    const hhmm = (h) => String(h == null ? '' : h).slice(0, 5);
 
     function renderHorarios() {
         const tbody = $('tabla-horarios');
-        if (db.horarios.length === 0) {
-            tbody.innerHTML = filaVacia(7, 'No hay clases programadas.');
+        const visibles = horariosVisibles();
+
+        // El título de la tabla dice de quién son las clases que se listan.
+        const titulo = $('titulo-tabla-horarios');
+        if (titulo) {
+            const doc = docenteFiltrado === null ? null : buscarDocente(docenteFiltrado);
+            titulo.textContent = doc
+                ? `Clases de ${nombreDocente(doc)}`
+                : 'Clases programadas';
+        }
+
+        if (visibles.length === 0) {
+            tbody.innerHTML = filaVacia(7, docenteFiltrado === null
+                ? 'No hay clases programadas.'
+                : 'Este docente no tiene clases programadas.');
         } else {
-            tbody.innerHTML = db.horarios.map(h => {
-                const curso = buscarCurso(h.cursoId);
-                const asig = buscarAsignatura(h.asignaturaId);
-                const doc = buscarDocente(h.docenteId);
-                const enConflicto = conflictosDe(h, h.id).length > 0;
+            tbody.innerHTML = visibles.map(h => {
+                const enConflicto = conflictosDe(h).length > 0;
                 return `
                 <tr class="${enConflicto ? 'row-conflict' : ''}">
-                    <td>${curso ? escapeHTML(curso.curso) : '—'}</td>
-                    <td>${asig ? escapeHTML(asig.nombre) : '—'}</td>
-                    <td>${doc ? escapeHTML(doc.nombre) : '—'}</td>
-                    <td>${escapeHTML(h.dia)}</td>
-                    <td>${h.horaInicio} - ${h.horaFin}</td>
+                    <td>${escapeHTML(h.curso) || GUION}</td>
+                    <td>${escapeHTML(h.asignatura) || GUION}</td>
+                    <td>${escapeHTML(h.docente) || GUION}</td>
+                    <td>${escapeHTML(h.dia_semana)}</td>
+                    <td>${hhmm(h.hora_inicio)} - ${hhmm(h.hora_fin)}</td>
                     <td>${enConflicto
                         ? '<span class="badge badge-tarde">Conflicto</span>'
                         : '<span class="badge badge-unica">OK</span>'}</td>
                     <td>
-                        <button class="btn btn-warning btn-sm" data-accion="editar-horario" data-id="${h.id}">Editar</button>
-                        <button class="btn btn-danger btn-sm" data-accion="eliminar-horario" data-id="${h.id}">Eliminar</button>
+                        <button class="btn btn-warning btn-sm" data-accion="editar-horario" data-id="${h.idHorario}">Editar</button>
+                        <button class="btn btn-danger btn-sm" data-accion="eliminar-horario" data-id="${h.idHorario}">Eliminar</button>
                     </td>
                 </tr>`;
             }).join('');
         }
-        renderDashboard();
+        renderPanelCarga();
         renderCalendario();
     }
+    // 6a. Carga horaria de los docentes
+    // La carga vive en la tabla `carga_docente` de la base de datos, que los
+    // triggers mantienen al día. Aquí solo se muestra: horas ya programadas
+    // frente al tope del contrato (40 h tiempo completo / 20 h medio tiempo).
+    // Declarada como function (no const) porque renderDocentes, que aparece
+    // antes en el archivo, la usa para pintar la columna de carga.
+    function buscarCarga(idDocente) {
+        return db.cargas.find(c => Number(c.idDocente) === Number(idDocente));
+    }
 
-    // ----------------------------------------------------------------------
-    // 6b. Calendario tipo Google Calendar (vista de Horarios)
-    // --------------------------------------------------------------------------
+    /** Formatea horas decimales como "16 h" o "7 h 30 min". */
+    function textoHoras(horas) {
+        const total = Math.round((Number(horas) || 0) * 60);
+        const h = Math.floor(total / 60);
+        const m = total % 60;
+        if (m === 0) return `${h} h`;
+        return h === 0 ? `${m} min` : `${h} h ${m} min`;
+    }
+
+    /** Nivel de ocupación, para colorear la barra y las cifras. */
+    function nivelCarga(c) {
+        if (!c || !c.tope_horas) return 'ok';
+        if (c.excede) return 'excede';
+        if (c.porcentaje >= 90) return 'alta';
+        return 'ok';
+    }
+
+    /** Barra de progreso con las horas del docente sobre su tope. */
+    function barraCarga(c) {
+        if (!c) return GUION;
+        const nivel = nivelCarga(c);
+        // La barra se llena hasta el 100%; el exceso se distingue por el color.
+        const ancho = Math.min(c.porcentaje, 100);
+        const titulo = `${textoHoras(c.horas)} de ${c.tope_horas} h (${c.tipo_contrato})`;
+        return `<div class="carga-barra" title="${escapeHTML(titulo)}">
+            <div class="carga-pista"><div class="carga-relleno ${nivel}" style="width:${ancho}%"></div></div>
+            <span class="carga-texto ${nivel}">${textoHoras(c.horas)} / ${c.tope_horas} h</span>
+        </div>`;
+    }
+
+    /** Rellena el select "Ver el horario de:" conservando la selección actual. */
+    function refrescarFiltroDocente() {
+        const sel = $('filtro-horario-docente');
+        if (!sel) return;
+
+        // Solo tiene sentido ofrecer docentes que ya tienen clases programadas.
+        const conClases = db.docentes.filter(d =>
+            db.horarios.some(h => Number(h.idDocente) === Number(d.idDocente)));
+
+        sel.innerHTML = '<option value="">Todos los docentes</option>' +
+            conClases.map(d => {
+                const c = buscarCarga(d.idDocente);
+                const detalle = c ? ` — ${textoHoras(c.horas)} / ${c.tope_horas} h` : '';
+                return `<option value="${d.idDocente}">${escapeHTML(nombreDocente(d) + detalle)}</option>`;
+            }).join('');
+
+        // Si el docente filtrado se quedó sin clases o fue eliminado, se vuelve a "todos".
+        if (docenteFiltrado && !conClases.some(d => Number(d.idDocente) === Number(docenteFiltrado))) {
+            docenteFiltrado = null;
+        }
+        sel.value = docenteFiltrado === null ? '' : String(docenteFiltrado);
+    }
+
+    /** Clases que se muestran en el calendario y la tabla según el filtro activo. */
+    function horariosVisibles() {
+        return docenteFiltrado === null
+            ? db.horarios
+            : db.horarios.filter(h => Number(h.idDocente) === Number(docenteFiltrado));
+    }
+
+    /** Tarjeta con la carga del docente filtrado, o el resumen de todos. */
+    function renderPanelCarga() {
+        const cont = $('panel-carga-docente');
+        if (!cont) return;
+
+        // Sin filtro: resumen general, destacando a quienes superan su tope.
+        if (docenteFiltrado === null) {
+            const excedidos = db.cargas.filter(c => c.excede);
+            const activos = db.cargas.filter(c => c.clases > 0);
+            const detalle = excedidos
+                .map(c => `${escapeHTML(c.docente)} (${textoHoras(c.horas)} de ${c.tope_horas} h)`)
+                .join('; ');
+            const aviso = excedidos.length
+                ? `<div class="alert alert-danger">
+                     <strong>${excedidos.length} docente(s) superan su tope de horas:</strong> ${detalle}.
+                   </div>`
+                : `<div class="alert alert-success">
+                     Ningún docente supera su tope de horas semanales.
+                   </div>`;
+            cont.innerHTML = `${aviso}
+                <p class="stat-label">
+                    ${activos.length} docente(s) con clases programadas ·
+                    Tope semanal: 40 h tiempo completo, 20 h medio tiempo.
+                    Elija un docente para ver únicamente su horario.
+                </p>`;
+            return;
+        }
+
+        const c = buscarCarga(docenteFiltrado);
+        if (!c) { cont.innerHTML = ''; return; }
+
+        const nivel = nivelCarga(c);
+        const clases = horariosVisibles();
+
+        // Desglose por día, calculado sobre las clases que ya están en memoria.
+        const porDia = DIAS_LECTIVOS.map(dia => {
+            const delDia = clases.filter(h => h.dia_semana === dia);
+            const min = delDia.reduce((s, h) => s + (minutos(h.hora_fin) - minutos(h.hora_inicio)), 0);
+            return { dia, horas: min / 60, clases: delDia.length };
+        }).filter(d => d.clases > 0);
+
+        const estado = c.excede
+            ? `<div class="alert alert-danger">
+                 <strong>Excede el tope.</strong> ${escapeHTML(c.docente)} tiene
+                 ${textoHoras(c.horas)} programadas y su contrato de ${escapeHTML(c.tipo_contrato)}
+                 permite ${c.tope_horas} h: se pasa por ${textoHoras(c.horas - c.tope_horas)}.
+               </div>`
+            : `<div class="alert alert-success">
+                 Dentro del tope: le quedan ${textoHoras(c.horas_disponibles)} disponibles
+                 de las ${c.tope_horas} h que permite su contrato de ${escapeHTML(c.tipo_contrato)}.
+               </div>`;
+
+        const dias = porDia.length
+            ? porDia.map(d => `<div class="carga-dia">
+                   <span class="carga-dia-nombre">${escapeHTML(ETIQUETA_DIA[d.dia] || d.dia)}</span>
+                   <span class="carga-dia-horas">${textoHoras(d.horas)}</span>
+                   <span class="stat-label">${d.clases} clase(s)</span>
+               </div>`).join('')
+            : '<span class="stat-label">Sin clases programadas.</span>';
+
+        cont.innerHTML = `
+            <div class="carga-detalle">
+                <div class="carga-cabecera">
+                    <div>
+                        <h3>${escapeHTML(c.docente)}</h3>
+                        <span class="stat-label">
+                            ${escapeHTML(c.tipo_contrato)} · Jornada ${escapeHTML(c.jornada || '—')} ·
+                            ${c.clases} clase(s) programada(s)
+                        </span>
+                    </div>
+                    <div class="carga-cifra ${nivel}">
+                        <span class="carga-horas">${textoHoras(c.horas)}</span>
+                        <span class="stat-label">de ${c.tope_horas} h · ${c.porcentaje}%</span>
+                    </div>
+                </div>
+                <div class="carga-pista grande">
+                    <div class="carga-relleno ${nivel}" style="width:${Math.min(c.porcentaje, 100)}%"></div>
+                </div>
+                ${estado}
+                <div class="carga-dias">${dias}</div>
+            </div>`;
+    }
+
+    /** Cambia el docente cuyo horario se está viendo y repinta lo que depende de él. */
+    function aplicarFiltroDocente(valor) {
+        docenteFiltrado = (valor === '' || valor === null) ? null : parseInt(valor, 10);
+        const sel = $('filtro-horario-docente');
+        if (sel) sel.value = docenteFiltrado === null ? '' : String(docenteFiltrado);
+        renderHorarios();
+    }
+
+    if ($('filtro-horario-docente')) {
+        $('filtro-horario-docente').addEventListener('change', (e) => aplicarFiltroDocente(e.target.value));
+        $('btn-limpiar-filtro-docente').addEventListener('click', () => aplicarFiltroDocente(''));
+    }
+    // 6b. Calendario (vista de Horarios)
     // Los horarios son recurrentes por día de la semana. La navegación usa
     // fechas reales (mes / semana / día) y cada clase se proyecta sobre el
     // día de la semana que le corresponde.
-    // ----------------------------------------------------------------------
-    const HORA_PX = 48;
-    const DIAS_JS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const HORA_PX = 56;
+    // Nombres tal como los guarda el ENUM de la base de datos (sin tildes),
+    // indexados por Date.getDay(). El domingo no tiene clases.
+    const DIAS_BD = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
     const DIAS_CORTO = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
     const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
         'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -533,8 +1173,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     calState.ancla.setHours(0, 0, 0, 0);
 
-    function minutos(hhmm) {
-        const partes = String(hhmm).split(':');
+    function minutos(hhmmss) {
+        const partes = String(hhmmss).split(':');
         return (parseInt(partes[0], 10) * 60) + (parseInt(partes[1], 10) || 0);
     }
     function pad2(n) { return String(n).padStart(2, '0'); }
@@ -554,23 +1194,24 @@ document.addEventListener('DOMContentLoaded', () => {
         d.setHours(0, 0, 0, 0);
         return d;
     }
-    function colorAsignatura(id) { return PALETA_CAL[Math.abs(id) % PALETA_CAL.length]; }
+    function colorAsignatura(id) { return PALETA_CAL[Math.abs(Number(id) || 0) % PALETA_CAL.length]; }
     function capitalizar(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
 
     // Clases recurrentes que aplican a una fecha concreta
     function clasesDeFecha(fecha) {
-        const nombreDia = DIAS_JS[fecha.getDay()];
-        return db.horarios
-            .filter(h => h.dia === nombreDia)
-            .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+        const nombreDia = DIAS_BD[fecha.getDay()];
+        // horariosVisibles() respeta el filtro "ver el horario de un docente".
+        return horariosVisibles()
+            .filter(h => h.dia_semana === nombreDia)
+            .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)));
     }
 
     // Rango de horas visible en las vistas semana / día
     function rangoHoras() {
-        let ini = 6 * 60, fin = 20 * 60;
-        db.horarios.forEach(h => {
-            ini = Math.min(ini, minutos(h.horaInicio));
-            fin = Math.max(fin, minutos(h.horaFin));
+        let ini = 6 * 60, fin = 18 * 60;
+        horariosVisibles().forEach(h => {
+            ini = Math.min(ini, minutos(h.hora_inicio));
+            fin = Math.max(fin, minutos(h.hora_fin));
         });
         ini = Math.floor(ini / 60) * 60;
         fin = Math.ceil(fin / 60) * 60;
@@ -604,21 +1245,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function eventoHTML(it, offsetIni) {
         const h = it.h;
-        const curso = buscarCurso(h.cursoId);
-        const asig = buscarAsignatura(h.asignaturaId);
-        const doc = buscarDocente(h.docenteId);
         const top = ((it.ini - offsetIni) / 60) * HORA_PX;
-        const alto = Math.max(((it.fin - it.ini) / 60) * HORA_PX - 2, 16);
+        const alto = Math.max(((it.fin - it.ini) / 60) * HORA_PX - 3, 22);
         const ancho = 100 / it.totalCols;
         const izq = it.col * ancho;
-        const conflicto = conflictosDe(h, h.id).length > 0;
-        return `<div class="cal-evento ${conflicto ? 'conflicto' : ''}"
-            style="top:${top}px;height:${alto}px;left:${izq}%;width:${ancho}%;background:${colorAsignatura(h.asignaturaId)}"
-            data-id="${h.id}"
-            title="${escapeHTML((asig || {}).nombre || '')} · ${escapeHTML((curso || {}).curso || '')} · ${escapeHTML((doc || {}).nombre || '')} (${h.horaInicio}-${h.horaFin})">
-            <strong>${h.horaInicio}–${h.horaFin}</strong>
-            <div>${escapeHTML((asig || {}).nombre || '—')}</div>
-            <div class="ev-sub">${escapeHTML((curso || {}).curso || '—')} · ${escapeHTML((doc || {}).nombre || '—')}</div>
+        const conflicto = conflictosDe(h).length > 0;
+        const compacto = alto < 46 ? ' compacto' : '';
+        const titulo = `${h.asignatura} · ${h.curso} · ${h.docente} (${hhmm(h.hora_inicio)}-${hhmm(h.hora_fin)})`;
+        return `<div class="cal-evento${compacto}${conflicto ? ' conflicto' : ''}"
+            style="top:${top}px;height:${alto}px;left:calc(${izq}% + 2px);width:calc(${ancho}% - 4px);background:${colorAsignatura(h.idAsignatura)}"
+            data-id="${h.idHorario}"
+            title="${escapeHTML(titulo)}">
+            <span class="ev-hora">${hhmm(h.hora_inicio)}–${hhmm(h.hora_fin)}</span>
+            <span class="ev-titulo">${escapeHTML(h.asignatura || '—')}</span>
+            <span class="ev-sub">${escapeHTML(h.curso || '—')} · ${escapeHTML(h.docente || '—')}</span>
         </div>`;
     }
 
@@ -629,11 +1269,13 @@ document.addEventListener('DOMContentLoaded', () => {
             lineas += `<div class="cal-hline" style="top:${i * HORA_PX}px"></div>`;
         }
         const items = clasesDeFecha(fecha).map(h => ({
-            h, ini: minutos(h.horaInicio), fin: minutos(h.horaFin)
+            h, ini: minutos(h.hora_inicio), fin: minutos(h.hora_fin)
         }));
         empaquetarEventos(items);
         const eventos = items.map(it => eventoHTML(it, ini)).join('');
-        return `<div class="cal-col" data-fecha="${isoFecha(fecha)}">${lineas}${eventos}</div>`;
+        const hoy = new Date();
+        const clase = mismaFecha(fecha, hoy) ? 'cal-col hoy' : 'cal-col';
+        return `<div class="${clase}" data-fecha="${isoFecha(fecha)}">${lineas}${eventos}</div>`;
     }
 
     function renderSemanaODia(dias) {
@@ -643,18 +1285,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const cabecera = dias.map(f => `
             <div class="cal-dia-cab ${mismaFecha(f, hoy) ? 'hoy' : ''}" data-fecha="${isoFecha(f)}" data-ir-dia="1">
-                ${DIAS_CORTO[f.getDay()]}<span class="num">${f.getDate()}</span>
+                <span class="dia">${DIAS_CORTO[f.getDay()]}</span>
+                <span class="num">${f.getDate()}</span>
             </div>`).join('');
 
         let etiquetas = '';
         for (let m = ini, i = 0; m <= fin; m += 60, i++) {
-            etiquetas += `<div class="cal-hlbl" style="top:${(i * HORA_PX) - 6}px">${pad2(m / 60)}:00</div>`;
+            etiquetas += `<div class="cal-hlbl" style="top:${(i * HORA_PX) - 7}px">${pad2(m / 60)}:00</div>`;
         }
 
         const columnas = dias.map(f => renderColumnaDia(f, ini, fin)).join('');
+        const nDias = dias.length;
 
         return `
-        <div class="cal-semana">
+        <div class="cal-semana" style="--cal-dias:${nDias}">
             <div class="cal-cabecera">
                 <div class="cal-esquina"></div>
                 ${cabecera}
@@ -676,13 +1320,10 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < 42; i++) {
             const f = sumarDias(inicioRejilla, i);
             const clases = clasesDeFecha(f);
-            const chips = clases.slice(0, 3).map(h => {
-                const asig = buscarAsignatura(h.asignaturaId);
-                const curso = buscarCurso(h.cursoId);
-                return `<div class="cal-chip" data-id="${h.id}" style="background:${colorAsignatura(h.asignaturaId)}"
-                    title="${escapeHTML((asig || {}).nombre || '')} · ${escapeHTML((curso || {}).curso || '')}">
-                    ${h.horaInicio} ${escapeHTML((asig || {}).nombre || '—')}</div>`;
-            }).join('');
+            const chips = clases.slice(0, 3).map(h =>
+                `<div class="cal-chip" data-id="${h.idHorario}" style="background:${colorAsignatura(h.idAsignatura)}"
+                    title="${escapeHTML(`${h.asignatura} · ${h.curso} · ${h.docente}`)}">
+                    ${hhmm(h.hora_inicio)} ${escapeHTML(h.asignatura || '—')}</div>`).join('');
             const mas = clases.length > 3 ? `<div class="cal-mes-mas">+${clases.length - 3} más</div>` : '';
             celdas += `<div class="cal-mes-dia ${f.getMonth() !== mesActual ? 'otro-mes' : ''} ${mismaFecha(f, hoy) ? 'hoy' : ''}"
                 data-fecha="${isoFecha(f)}" data-ir-dia="1">
@@ -707,9 +1348,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }));
         }
         const lun = lunesDe(a);
-        const dom = sumarDias(lun, 6);
+        const sab = sumarDias(lun, 5);
         return `${lun.getDate()} ${MESES_CORTO[lun.getMonth()]} – ` +
-            `${dom.getDate()} ${MESES_CORTO[dom.getMonth()]} ${dom.getFullYear()}`;
+            `${sab.getDate()} ${MESES_CORTO[sab.getMonth()]} ${sab.getFullYear()}`;
     }
 
     function renderCalendario() {
@@ -725,9 +1366,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (calState.vista === 'dia') {
             cont.innerHTML = renderSemanaODia([new Date(calState.ancla)]);
         } else {
+            // Semana escolar: de lunes a sábado (el domingo no hay clases).
             const lun = lunesDe(calState.ancla);
             const semana = [];
-            for (let i = 0; i < 7; i++) semana.push(sumarDias(lun, i));
+            for (let i = 0; i < 6; i++) semana.push(sumarDias(lun, i));
             cont.innerHTML = renderSemanaODia(semana);
         }
     }
@@ -772,19 +1414,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-
-    // ----------------------------------------------------------------------
     // 7. Dashboard
-    // ----------------------------------------------------------------------
     function listarConflictos() {
         const pares = [];
         for (let i = 0; i < db.horarios.length; i++) {
             for (let j = i + 1; j < db.horarios.length; j++) {
                 const a = db.horarios[i], b = db.horarios[j];
-                if (a.dia === b.dia &&
-                    seSolapan(a.horaInicio, a.horaFin, b.horaInicio, b.horaFin) &&
-                    (a.docenteId === b.docenteId || a.cursoId === b.cursoId)) {
-                    pares.push({ a, b, motivo: a.docenteId === b.docenteId ? 'Docente' : 'Curso' });
+                if (a.dia_semana === b.dia_semana &&
+                    seSolapan(a.hora_inicio, a.hora_fin, b.hora_inicio, b.hora_fin) &&
+                    (Number(a.idDocente) === Number(b.idDocente) || Number(a.idCurso) === Number(b.idCurso))) {
+                    pares.push({ a, b, motivo: Number(a.idDocente) === Number(b.idDocente) ? 'Docente' : 'Curso' });
                 }
             }
         }
@@ -796,18 +1435,19 @@ document.addEventListener('DOMContentLoaded', () => {
         $('stat-docentes').textContent = db.docentes.length;
         $('stat-asignaturas').textContent = db.asignaturas.length;
         $('stat-horarios').textContent = db.horarios.length;
-        $('stat-estudiantes').textContent = db.cursos.reduce((s, c) => s + (c.numEstudiantes || 0), 0);
+        $('stat-estudiantes').textContent =
+            db.cursos.reduce((s, c) => s + (Number(c.numero_estudiantes) || 0), 0);
 
         const conflictos = listarConflictos();
         $('stat-conflictos').textContent = conflictos.length;
 
         // Distribución por jornada
-        const jornadas = ['Mañana', 'Tarde', 'Noche', 'Única'];
+        const jornadas = ['Mañana', 'Tarde', 'Mixta'];
         $('tabla-jornadas').innerHTML = jornadas.map(j => {
             const cursosJ = db.cursos.filter(c => c.jornada === j);
-            const idsJ = cursosJ.map(c => c.id);
-            const clasesJ = db.horarios.filter(h => idsJ.includes(h.cursoId)).length;
-            const estJ = cursosJ.reduce((s, c) => s + (c.numEstudiantes || 0), 0);
+            const idsJ = cursosJ.map(c => Number(c.idCurso));
+            const clasesJ = db.horarios.filter(h => idsJ.includes(Number(h.idCurso))).length;
+            const estJ = cursosJ.reduce((s, c) => s + (Number(c.numero_estudiantes) || 0), 0);
             return `<tr>
                 <td>${badgeJornada(j)}</td>
                 <td>${cursosJ.length}</td>
@@ -822,23 +1462,18 @@ document.addEventListener('DOMContentLoaded', () => {
             cont.innerHTML = '<div class="alert alert-success">No hay conflictos de horario en la programación actual.</div>';
         } else {
             cont.innerHTML = conflictos.map(({ a, b, motivo }) => {
-                const ca = buscarCurso(a.cursoId), cb = buscarCurso(b.cursoId);
-                const da = buscarDocente(a.docenteId), dbb = buscarDocente(b.docenteId);
                 const ref = motivo === 'Docente'
-                    ? `El docente <strong>${escapeHTML((da || {}).nombre || '—')}</strong>`
-                    : `El curso <strong>${escapeHTML((ca || {}).curso || '—')}</strong>`;
+                    ? `El docente <strong>${escapeHTML(a.docente)}</strong>`
+                    : `El curso <strong>${escapeHTML(a.curso)}</strong>`;
                 return `<div class="alert alert-danger">
-                    ${ref} está asignado simultáneamente el <strong>${escapeHTML(a.dia)}</strong>:
-                    ${a.horaInicio}-${a.horaFin} (${escapeHTML((ca || {}).curso || '—')} / ${escapeHTML((da || {}).nombre || '—')})
-                    y ${b.horaInicio}-${b.horaFin} (${escapeHTML((cb || {}).curso || '—')} / ${escapeHTML((dbb || {}).nombre || '—')}).
+                    ${ref} está asignado simultáneamente el <strong>${escapeHTML(a.dia_semana)}</strong>:
+                    ${hhmm(a.hora_inicio)}-${hhmm(a.hora_fin)} (${escapeHTML(a.asignatura)} / ${escapeHTML(a.curso)})
+                    y ${hhmm(b.hora_inicio)}-${hhmm(b.hora_fin)} (${escapeHTML(b.asignatura)} / ${escapeHTML(b.curso)}).
                 </div>`;
             }).join('');
         }
     }
-
-    // ----------------------------------------------------------------------
     // 8. Consultas de la programación
-    // ----------------------------------------------------------------------
     $('consulta-tipo').addEventListener('change', actualizarValoresConsulta);
     $('btn-consultar').addEventListener('click', ejecutarConsulta);
 
@@ -847,13 +1482,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const sel = $('consulta-valor');
         let opciones = [];
         if (tipo === 'curso') {
-            opciones = db.cursos.map(c => ({ v: c.id, t: `${c.curso} (${c.jornada})` }));
+            opciones = db.cursos.map(c => ({ v: c.idCurso, t: `${c.curso} — ${c.jornada}` }));
         } else if (tipo === 'docente') {
-            opciones = db.docentes.map(d => ({ v: d.id, t: d.nombre }));
+            opciones = db.docentes.map(d => ({ v: d.idDocente, t: nombreDocente(d) }));
         } else if (tipo === 'asignatura') {
-            opciones = db.asignaturas.map(a => ({ v: a.id, t: a.nombre }));
+            opciones = db.asignaturas.map(a => ({ v: a.idAsignatura, t: a.nombre_asignatura }));
         } else if (tipo === 'jornada') {
-            opciones = ['Mañana', 'Tarde', 'Noche', 'Única'].map(j => ({ v: j, t: j }));
+            opciones = ['Mañana', 'Tarde', 'Mixta'].map(j => ({ v: j, t: j }));
         }
         sel.innerHTML = opciones.length
             ? opciones.map(o => `<option value="${o.v}">${escapeHTML(o.t)}</option>`).join('')
@@ -872,43 +1507,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let filas = db.horarios.slice();
         if (tipo === 'curso') {
-            filas = filas.filter(h => h.cursoId === parseInt(valor, 10));
+            filas = filas.filter(h => Number(h.idCurso) === parseInt(valor, 10));
         } else if (tipo === 'docente') {
-            filas = filas.filter(h => h.docenteId === parseInt(valor, 10));
+            filas = filas.filter(h => Number(h.idDocente) === parseInt(valor, 10));
         } else if (tipo === 'asignatura') {
-            filas = filas.filter(h => h.asignaturaId === parseInt(valor, 10));
+            filas = filas.filter(h => Number(h.idAsignatura) === parseInt(valor, 10));
         } else if (tipo === 'jornada') {
-            const ids = db.cursos.filter(c => c.jornada === valor).map(c => c.id);
-            filas = filas.filter(h => ids.includes(h.cursoId));
+            filas = filas.filter(h => h.jornada === valor);
         }
 
-        const ordenDias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-        filas.sort((x, y) => (ordenDias.indexOf(x.dia) - ordenDias.indexOf(y.dia)) ||
-            x.horaInicio.localeCompare(y.horaInicio));
+        const ordenDias = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+        filas.sort((x, y) => (ordenDias.indexOf(x.dia_semana) - ordenDias.indexOf(y.dia_semana)) ||
+            String(x.hora_inicio).localeCompare(String(y.hora_inicio)));
 
         if (filas.length === 0) {
             tbody.innerHTML = filaVacia(6, 'No se encontraron clases para esta consulta.');
             return;
         }
 
-        tbody.innerHTML = filas.map(h => {
-            const c = buscarCurso(h.cursoId);
-            const a = buscarAsignatura(h.asignaturaId);
-            const d = buscarDocente(h.docenteId);
-            return `<tr>
-                <td>${c ? escapeHTML(c.curso) : '—'}</td>
-                <td>${c ? badgeJornada(c.jornada) : '—'}</td>
-                <td>${a ? escapeHTML(a.nombre) : '—'}</td>
-                <td>${d ? escapeHTML(d.nombre) : '—'}</td>
-                <td>${escapeHTML(h.dia)}</td>
-                <td>${h.horaInicio} - ${h.horaFin}</td>
-            </tr>`;
-        }).join('');
+        tbody.innerHTML = filas.map(h => `
+            <tr>
+                <td>${escapeHTML(h.curso)}</td>
+                <td>${badgeJornada(h.jornada)}</td>
+                <td>${escapeHTML(h.asignatura)}</td>
+                <td>${escapeHTML(h.docente)}</td>
+                <td>${escapeHTML(h.dia_semana)}</td>
+                <td>${hhmm(h.hora_inicio)} - ${hhmm(h.hora_fin)}</td>
+            </tr>`).join('');
     }
-
-    // ----------------------------------------------------------------------
     // 9. Delegación de eventos para los botones de las tablas
-    // ----------------------------------------------------------------------
     document.addEventListener('click', (e) => {
         const boton = e.target.closest('button[data-accion]');
         if (!boton) return;
@@ -922,44 +1549,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const fn = acciones[boton.dataset.accion];
         if (fn) fn(id);
     });
-
-    // ----------------------------------------------------------------------
-    // 10. Datos de ejemplo la primera vez (para poder ver la interfaz)
-    // ----------------------------------------------------------------------
-    function sembrarEjemplo() {
-        if (db.cursos.length || db.docentes.length || db.asignaturas.length) return;
-
-        const mat = { id: nuevoId(), nombre: 'Matemáticas', intensidadHoraria: 5 };
-        const esp = { id: nuevoId(), nombre: 'Lengua Castellana', intensidadHoraria: 4 };
-        const cie = { id: nuevoId(), nombre: 'Ciencias Naturales', intensidadHoraria: 3 };
-        db.asignaturas.push(mat, esp, cie);
-
-        const c1 = { id: nuevoId(), grado: '10', curso: '10-A', jornada: 'Mañana', numEstudiantes: 32 };
-        const c2 = { id: nuevoId(), grado: '11', curso: '11-B', jornada: 'Tarde', numEstudiantes: 28 };
-        db.cursos.push(c1, c2);
-
-        const d1 = { id: nuevoId(), nombre: 'María Gómez', documento: '1088123456', email: 'mgomez@inst.edu.co', telefono: '300 111 2233', asignaturas: [mat.id, cie.id], disponibilidad: 'Lunes a Viernes 7:00 - 13:00' };
-        const d2 = { id: nuevoId(), nombre: 'Carlos Ruiz', documento: '1088987654', email: 'cruiz@inst.edu.co', telefono: '301 445 6677', asignaturas: [esp.id], disponibilidad: 'Lunes a Viernes 13:00 - 18:00' };
-        db.docentes.push(d1, d2);
-
-        db.horarios.push(
-            { id: nuevoId(), cursoId: c1.id, asignaturaId: mat.id, docenteId: d1.id, dia: 'Lunes', horaInicio: '07:00', horaFin: '09:00' },
-            { id: nuevoId(), cursoId: c1.id, asignaturaId: cie.id, docenteId: d1.id, dia: 'Martes', horaInicio: '09:00', horaFin: '11:00' },
-            { id: nuevoId(), cursoId: c2.id, asignaturaId: esp.id, docenteId: d2.id, dia: 'Lunes', horaInicio: '13:00', horaFin: '15:00' }
-        );
-
-        guardarDB();
-    }
-
-    // ----------------------------------------------------------------------
-    // 11. Arranque
-    // ----------------------------------------------------------------------
-    sembrarEjemplo();
-    initCalendario();
-    renderCursos();
-    renderAsignaturas();
-    renderDocentes();
-    renderHorarios();
-    renderDashboard();
-    actualizarValoresConsulta();
+    // 10. Arranque
+    (async () => {
+        initCalendario();
+        try {
+            await recargarTodo();
+        } catch (error) {
+            console.error('Error al inicializar:', error);
+            document.querySelector('.container').insertAdjacentHTML('afterbegin',
+                '<div class="alert alert-danger">No se pudieron cargar los datos desde el servidor. ' +
+                'Verifique que Apache y MySQL estén activos en XAMPP y recargue la página.</div>');
+        }
+    })();
 });

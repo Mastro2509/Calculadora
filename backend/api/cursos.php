@@ -1,17 +1,4 @@
 <?php
-/* ==========================================================================
-   Recurso: cursos
-   --------------------------------------------------------------------------
-   GET    /cursos.php            -> lista de cursos
-   GET    /cursos.php?id=N       -> un curso
-   GET    /cursos.php?q=texto    -> busca por grado o nombre del curso
-   GET    /cursos.php?jornada=Mañana&grado=10  -> filtros combinables
-   POST   /cursos.php            -> crea un curso
-   PUT    /cursos.php?id=N       -> reemplaza / actualiza un curso
-   DELETE /cursos.php?id=N       -> elimina un curso (borra en cascada sus
-                                    asignaciones y horarios asociados)
-   Campos: grado, curso, jornada (Mañana|Tarde|Mixta), numero_estudiantes
-   ========================================================================== */
 
 require __DIR__ . '/_bootstrap.php';
 

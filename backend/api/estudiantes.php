@@ -1,29 +1,7 @@
 <?php
-/* ==========================================================================
-   Recurso: estudiantes (gestión de notas)  -  versión REST
-   --------------------------------------------------------------------------
-   Alternativa unificada a los scripts sueltos guardar.php / consultar.php /
-   actualizar.php / eliminar.php (que se mantienen para no romper el
-   index.html actual).
-
-   GET    /estudiantes.php        -> lista
-   GET    /estudiantes.php?id=N   -> un estudiante
-   GET    /estudiantes.php?q=texto            -> busca por nombre
-   GET    /estudiantes.php?resultado=Aprobado -> filtra por resultado cualitativo
-   GET    /estudiantes.php?min=3&max=4.5      -> filtra por rango de promedio
-   POST   /estudiantes.php        -> crea
-   PUT    /estudiantes.php?id=N   -> actualiza
-   DELETE /estudiantes.php?id=N   -> elimina
-
-   Cuerpo (se aceptan los nombres del frontend o los de la tabla):
-     nombre  | nombre_Estudiante
-     nota1..nota4  |  nota_Uno .. nota_Cuatro
-   El promedio y el resultado cualitativo se calculan en el servidor.
-   ========================================================================== */
 
 require __DIR__ . '/_bootstrap.php';
 
-/** Toma el primer valor no nulo entre varias claves posibles del cuerpo. */
 function campo(array $d, array $claves, $defecto = null)
 {
     foreach ($claves as $k) {
@@ -34,7 +12,6 @@ function campo(array $d, array $claves, $defecto = null)
     return $defecto;
 }
 
-/** Calcula promedio (1 decimal) y resultado cualitativo a partir de 4 notas. */
 function calcularNotas(float $n1, float $n2, float $n3, float $n4): array
 {
     $promedio = round(($n1 + $n2 + $n3 + $n4) / 4, 1);
@@ -52,7 +29,6 @@ function calcularNotas(float $n1, float $n2, float $n3, float $n4): array
     return [$promedio, $resultado];
 }
 
-/** Extrae y valida las notas del cuerpo. Devuelve [n1, n2, n3, n4]. */
 function leerNotas(array $d): array
 {
     $notas = [

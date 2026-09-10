@@ -1,7 +1,3 @@
-/* ==========================================================================
-   Programación Académica - Estilos
-   Reutiliza las variables y el lenguaje visual de css/style.css
-   ========================================================================== */
 
 :root {
     --warning-color: #e0a800;
@@ -115,6 +111,7 @@
 .alert-success { background-color: #d4edda; color: #155724; }
 .alert-danger { background-color: #f8d7da; color: #721c24; }
 .alert-info { background-color: #d1ecf1; color: #0c5460; }
+.alert-warning { background-color: #fff3cd; color: #856404; }
 
 .empty-row td {
     text-align: center;
@@ -155,7 +152,26 @@ select {
     border: 1px solid var(--border-color);
     border-radius: 4px;
     font-size: 1rem;
+    font-family: inherit;
+    color: var(--text-color);
     background-color: #fff;
+    box-sizing: border-box;
+    height: 46px;
+}
+
+/* Los formularios en línea alinean sus campos por la base, para que
+   etiquetas de una o dos líneas no desalineen los inputs. */
+.form-inline-grid .form-group {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+#aviso-asignaturas:not(:empty),
+#aviso-docentes:not(:empty),
+#aviso-disponibilidad:not(:empty) {
+    margin-top: 0.35rem;
+    line-height: 1.35;
 }
 
 textarea {
@@ -186,6 +202,18 @@ textarea {
     width: auto;
 }
 
+/* Asignatura que el docente ya dicta: no se puede desmarcar hasta que se
+   eliminen sus clases, así que se marca explícitamente en vez de dejar la
+   casilla muerta sin explicación. */
+.checkbox-group label.chk-bloqueada {
+    color: var(--muted-color);
+    cursor: help;
+}
+
+.checkbox-group label.chk-bloqueada small {
+    font-style: italic;
+}
+
 /* Consultas ---------------------------------------------------------- */
 .query-controls {
     display: flex;
@@ -207,9 +235,6 @@ textarea {
     }
 }
 
-/* ==========================================================================
-   Calendario tipo Google Calendar (vista de Horarios)
-   ========================================================================== */
 .cal-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -271,61 +296,105 @@ textarea {
     border-bottom: 1px solid var(--border-color);
 }
 
+/* La cabecera y el cuerpo comparten el mismo ancho de columna (--cal-ancho-col)
+   para que los días nunca se desalineen de sus columnas, ni siquiera cuando el
+   calendario tiene scroll horizontal en pantallas estrechas. */
+.cal-semana {
+    --cal-gutter: 58px;
+    --cal-ancho-col: minmax(112px, 1fr);
+}
+
+.cal-cabecera,
+.cal-dias {
+    display: grid;
+    grid-template-columns: var(--cal-gutter) repeat(var(--cal-dias, 6), var(--cal-ancho-col));
+}
+
+.cal-cabecera {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
 .cal-esquina {
-    width: 56px;
-    flex-shrink: 0;
+    border-right: 1px solid var(--border-color);
 }
 
 .cal-dia-cab {
-    flex: 1;
     text-align: center;
-    padding: 0.5rem 0.2rem;
-    font-size: 0.8rem;
+    padding: 0.45rem 0.2rem 0.55rem;
+    font-size: 0.75rem;
     font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted-color);
     border-left: 1px solid var(--border-color);
     cursor: pointer;
 }
 
+.cal-dia-cab:hover {
+    background: #eef2f7;
+}
+
 .cal-dia-cab .num {
     display: block;
-    font-size: 1.15rem;
+    margin-top: 0.15rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-color);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.cal-dia-cab.hoy .num {
+    display: inline-block;
+    min-width: 1.9rem;
+    padding: 0.1rem 0;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: #fff;
 }
 
 .cal-dia-cab.hoy {
-    background: #e7f0fb;
     color: var(--primary-color);
 }
 
 .cal-cuerpo {
-    display: flex;
-    max-height: 600px;
-    overflow-y: auto;
+    position: relative;
+    max-height: 620px;
+    overflow: auto;
 }
 
+/* El gutter de horas es la primera columna de la rejilla del cuerpo y se
+   mantiene visible al desplazar en horizontal. */
 .cal-gutter {
-    width: 56px;
-    flex-shrink: 0;
-    position: relative;
+    grid-column: 1;
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--card-bg);
+    border-right: 1px solid var(--border-color);
 }
 
 .cal-hlbl {
     position: absolute;
-    right: 6px;
+    right: 8px;
     font-size: 0.7rem;
     color: var(--muted-color);
+    white-space: nowrap;
 }
 
 .cal-dias {
-    flex: 1;
-    display: flex;
     position: relative;
 }
 
 .cal-col {
-    flex: 1;
     position: relative;
     border-left: 1px solid var(--border-color);
-    min-width: 90px;
+}
+
+.cal-col.hoy {
+    background: #f5f9ff;
 }
 
 .cal-hline {
@@ -337,18 +406,57 @@ textarea {
 
 .cal-evento {
     position: absolute;
-    border-radius: 5px;
-    padding: 2px 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border-radius: 6px;
+    padding: 3px 6px;
     color: #fff;
     overflow: hidden;
     font-size: 0.72rem;
-    line-height: 1.25;
+    line-height: 1.2;
     cursor: pointer;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+    transition: filter 0.12s ease;
+}
+
+.cal-evento:hover {
+    filter: brightness(1.12);
+    z-index: 4;
+}
+
+.cal-evento .ev-hora {
+    font-size: 0.66rem;
+    font-weight: 700;
+    opacity: 0.92;
+}
+
+.cal-evento .ev-titulo {
+    font-weight: 600;
+    /* El nombre de la asignatura nunca se parte a media palabra. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .cal-evento .ev-sub {
-    opacity: 0.9;
+    font-size: 0.66rem;
+    opacity: 0.88;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Bloques cortos: solo cabe una línea, se oculta el detalle. */
+.cal-evento.compacto {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 4px;
+    padding: 1px 5px;
+}
+
+.cal-evento.compacto .ev-sub {
+    display: none;
 }
 
 .cal-evento.conflicto {
@@ -439,4 +547,139 @@ textarea {
     .cal-chip {
         font-size: 0.6rem;
     }
+    /* En móvil las columnas se estrechan y el calendario se desplaza en
+       horizontal; el gutter de horas permanece fijo. */
+    .cal-semana {
+        --cal-gutter: 46px;
+        --cal-ancho-col: 88px;
+    }
+    .cal-evento {
+        font-size: 0.64rem;
+    }
+}
+
+
+/* Filtro "ver el horario de un docente" ------------------------------- */
+.filtro-docente {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1rem;
+    margin-bottom: 1.2rem;
+}
+
+.filtro-docente .form-group {
+    flex: 1;
+    min-width: 240px;
+    margin-bottom: 0;
+}
+
+/* Barra de progreso (tabla de docentes) ------------------------------- */
+.carga-barra {
+    min-width: 130px;
+}
+
+.carga-pista {
+    height: 8px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.carga-pista.grande {
+    height: 14px;
+    border-radius: 7px;
+    margin-bottom: 1rem;
+}
+
+.carga-relleno {
+    height: 100%;
+    border-radius: inherit;
+    background-color: var(--success-color);
+    transition: width 0.3s ease;
+}
+
+.carga-relleno.alta   { background-color: var(--warning-color); }
+.carga-relleno.excede { background-color: var(--danger-color); }
+
+.carga-texto {
+    display: inline-block;
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: var(--muted-color);
+}
+
+.carga-texto.alta   { color: var(--warning-color); }
+.carga-texto.excede { color: var(--danger-color); }
+
+/* Tarjeta de detalle de un docente ------------------------------------ */
+.carga-detalle {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.2rem;
+}
+
+.carga-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+}
+
+.carga-cabecera h3 {
+    margin: 0 0 0.2rem;
+    font-size: 1.15rem;
+    color: var(--primary-color);
+}
+
+.carga-cifra {
+    text-align: right;
+    line-height: 1.3;
+}
+
+.carga-horas {
+    display: block;
+    font-size: 1.6rem;
+    font-weight: bold;
+    color: var(--success-color);
+}
+
+.carga-cifra.alta   .carga-horas { color: var(--warning-color); }
+.carga-cifra.excede .carga-horas { color: var(--danger-color); }
+
+/* Desglose por dia ----------------------------------------------------- */
+.carga-dias {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.4rem;
+}
+
+.carga-dia {
+    flex: 1;
+    min-width: 96px;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: #f8f9fa;
+    text-align: center;
+}
+
+.carga-dia-nombre {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: bold;
+    color: var(--muted-color);
+    text-transform: uppercase;
+}
+
+.carga-dia-horas {
+    display: block;
+    margin: 0.15rem 0;
+    font-size: 1.05rem;
+    font-weight: bold;
+    color: var(--primary-color);
 }

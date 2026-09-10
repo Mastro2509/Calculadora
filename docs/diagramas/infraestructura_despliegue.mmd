@@ -1,0 +1,56 @@
+graph TB
+    Usuario["👤 USUARIO<br/>Navegador Web<br/>Chrome, Firefox, Safari, Edge<br/>Desktop / Mobile"]
+
+    subgraph Cliente["💻 CLIENTE"]
+        Nav["🌐 Navegador Web<br/>HTTP/HTTPS Puerto 80/443<br/>JavaScript habilitado"]
+    end
+
+    subgraph Servidor["🖥️ SERVIDOR WEB - APACHE"]
+        Apache["Apache 2.4+<br/>XAMPP / LAMP"]
+
+        subgraph Frontend_Files["🎨 Frontend"]
+            HTML_Files["index.html<br/>programacion.html"]
+            CSS_Files["style.css<br/>programacion.css"]
+            JS_Files["app.js<br/>Estudiante.js<br/>programacion.js"]
+        end
+
+        subgraph Backend_Files["⚙️ Backend - API REST"]
+            Bootstrap["_bootstrap.php<br/>Configuración"]
+            Endpoints["cursos.php<br/>docentes.php<br/>asignaturas.php<br/>asignaciones.php<br/>horarios.php<br/>consultas.php<br/>estudiantes.php"]
+            DB_Connection["conexion.php<br/>Conexión PDO"]
+        end
+
+        Localización["📁 Ruta: htdocs/Calculadora/"]
+    end
+
+    subgraph BD["💾 SERVIDOR BASE DE DATOS - MySQL"]
+        MySQL["MySQL 5.7+ / MariaDB 10.3+<br/>Puerto: 3306<br/>Base: gestion_notas"]
+
+        subgraph Tablas["📊 Tablas Normalizadas"]
+            T1["estudiante<br/>id, nombre, notas, promedio"]
+            T2["curso<br/>id, grado, jornada"]
+            T3["docente<br/>id, doc, nombres, jornada"]
+            T4["asignatura<br/>id, nombre, intensidad"]
+            T5["asignacion_academica<br/>id, idDocente, idCurso, idAsignatura"]
+            T6["horario<br/>id, idAsignacion, dia, hora"]
+        end
+    end
+
+    Usuario -->|Accede| Nav
+    Nav -->|HTTP/HTTPS| Servidor
+
+    Servidor -->|Sirve| Frontend_Files
+    Servidor -->|Procesa| Backend_Files
+
+    Bootstrap --> Endpoints
+    Endpoints --> DB_Connection
+
+    DB_Connection -->|TCP/IP Puerto 3306| BD
+    MySQL --> Tablas
+
+    style Cliente fill:#e3f2fd,stroke:#01579b,stroke-width:2px
+    style Servidor fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    style BD fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style Frontend_Files fill:#c8e6c9
+    style Backend_Files fill:#dcedc8
+    style Tablas fill:#ffe0b2

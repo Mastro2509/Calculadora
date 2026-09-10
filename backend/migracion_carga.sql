@@ -1,72 +1,27 @@
-create database gestion_notas;
-use gestion_notas;
+-- ============================================================================
+-- Migración: tabla de carga horaria de docentes
+-- ----------------------------------------------------------------------------
+-- Aplica la tabla `carga_docente` (y su mantenimiento automático) sobre una
+-- base de datos gestion_notas que ya tiene datos, sin recrear nada.
+--
+-- Uso desde la consola de XAMPP:
+--     mysql -u root gestion_notas < backend/migracion_carga.sql
+-- o pegando el contenido en la pestaña SQL de phpMyAdmin.
+-- ============================================================================
+USE gestion_notas;
 
-create table estudiante (
-	idEstudiante INT AUTO_INCREMENT PRIMARY KEY,
-    nombre_Estudiante VARCHAR (50),
-    nota_Uno INT,
-    nota_Dos INT,
-    nota_Tres INT,
-    nota_Cuatro INT,
-    promedio DECIMAL (10,2),
-    resultado_Cualitativo VARCHAR (50)
-);
+-- Se eliminan primero por si la migración se ejecuta más de una vez.
+DROP TRIGGER IF EXISTS carga_docente_alta;
+DROP TRIGGER IF EXISTS carga_docente_cambio;
+DROP TRIGGER IF EXISTS carga_horario_alta;
+DROP TRIGGER IF EXISTS carga_horario_cambio;
+DROP TRIGGER IF EXISTS carga_horario_baja;
+DROP PROCEDURE IF EXISTS recalcular_carga_docente;
 
-CREATE TABLE curso (
-    idCurso INT AUTO_INCREMENT PRIMARY KEY,
-    grado VARCHAR(20) NOT NULL,
-    curso VARCHAR(20) NOT NULL,
-    jornada ENUM('Mañana', 'Tarde', 'Mixta') NOT NULL,
-    numero_estudiantes INT NOT NULL
-);
-
-CREATE TABLE docente (
-    idDocente INT AUTO_INCREMENT PRIMARY KEY,
-    documento VARCHAR(20) UNIQUE NOT NULL,
-    nombres VARCHAR(50) NOT NULL,
-    apellidos VARCHAR(50) NOT NULL,
-    tipo_contrato ENUM('Tiempo Completo', 'Medio Tiempo') NOT NULL,
-    jornada ENUM('Mañana', 'Tarde', 'Mixta') NOT NULL,
-    dias_trabajo SET('Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado') NOT NULL
-);
-
-CREATE TABLE asignatura (
-    idAsignatura INT AUTO_INCREMENT PRIMARY KEY,
-    nombre_asignatura VARCHAR(100) NOT NULL,
-    intensidad_horaria INT NOT NULL
-);
-
-CREATE TABLE docente_asignatura (
-    idDocente INT NOT NULL,
-    idAsignatura INT NOT NULL,
-    PRIMARY KEY (idDocente, idAsignatura),
-    FOREIGN KEY (idDocente) REFERENCES docente(idDocente) ON DELETE CASCADE,
-    FOREIGN KEY (idAsignatura) REFERENCES asignatura(idAsignatura) ON DELETE CASCADE
-);
-
-CREATE TABLE asignacion_academica (
-    idAsignacion INT AUTO_INCREMENT PRIMARY KEY,
-    idDocente INT NOT NULL,
-    idCurso INT NOT NULL,
-    idAsignatura INT NOT NULL,
-    FOREIGN KEY (idDocente) REFERENCES docente(idDocente) ON DELETE CASCADE,
-    FOREIGN KEY (idCurso) REFERENCES curso(idCurso) ON DELETE CASCADE,
-    FOREIGN KEY (idAsignatura) REFERENCES asignatura(idAsignatura) ON DELETE CASCADE
-);
-
-CREATE TABLE horario (
-    idHorario INT AUTO_INCREMENT PRIMARY KEY,
-    idAsignacion INT NOT NULL,
-    dia_semana ENUM('Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado') NOT NULL,
-    hora_inicio TIME NOT NULL,
-    hora_fin TIME NOT NULL,
-    FOREIGN KEY (idAsignacion) REFERENCES asignacion_academica(idAsignacion) ON DELETE CASCADE
-);
-
-CREATE TABLE carga_docente (
+CREATE TABLE IF NOT EXISTS carga_docente (
     idDocente INT PRIMARY KEY,
-    tope_horas DECIMAL(5,2) NOT NULL,          -- 40 o 20 segun tipo_contrato
-    minutos_programados INT NOT NULL DEFAULT 0, -- suma de duraciones en `horario`
+    tope_horas DECIMAL(5,2) NOT NULL,
+    minutos_programados INT NOT NULL DEFAULT 0,
     horas_programadas DECIMAL(5,2) AS (minutos_programados / 60) STORED,
     clases_programadas INT NOT NULL DEFAULT 0,
     excede BOOLEAN AS (minutos_programados > tope_horas * 60) STORED,
@@ -152,6 +107,7 @@ END$$
 
 DELIMITER ;
 
+-- Sincroniza la tabla con lo que ya existe en `horario`.
 INSERT INTO carga_docente (idDocente, tope_horas, minutos_programados, clases_programadas)
 SELECT d.idDocente,
        CASE d.tipo_contrato WHEN 'Medio Tiempo' THEN 20 ELSE 40 END,
@@ -165,3 +121,6 @@ ON DUPLICATE KEY UPDATE
     tope_horas          = VALUES(tope_horas),
     minutos_programados = VALUES(minutos_programados),
     clases_programadas  = VALUES(clases_programadas);
+
+SELECT idDocente, tope_horas, horas_programadas, clases_programadas, excede
+  FROM carga_docente ORDER BY idDocente;

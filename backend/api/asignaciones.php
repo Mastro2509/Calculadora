@@ -1,21 +1,5 @@
 <?php
-/* ==========================================================================
-   Recurso: asignaciones (asignacion_academica)
-   --------------------------------------------------------------------------
-   Relaciona un docente + un curso + una asignatura. Es la entidad sobre la
-   que cuelgan los horarios.
 
-   GET    /asignaciones.php                 -> lista (enriquecida con nombres)
-   GET    /asignaciones.php?id=N            -> una asignación
-   GET    /asignaciones.php?idDocente=N     -> filtra por docente
-   GET    /asignaciones.php?idCurso=N       -> filtra por curso
-   GET    /asignaciones.php?idAsignatura=N  -> filtra por asignatura
-   GET    /asignaciones.php?q=texto         -> busca por docente, curso o asignatura
-   POST   /asignaciones.php                 -> crea { idDocente, idCurso, idAsignatura }
-   DELETE /asignaciones.php?id=N            -> elimina (cascada sobre horarios)
-
-   No se permiten ternas duplicadas.
-   ========================================================================== */
 
 require __DIR__ . '/_bootstrap.php';
 
@@ -81,8 +65,7 @@ ejecutar(function () use ($pdo) {
             if (asignacionParaTerna($pdo, $idDocente, $idCurso, $idAsignatura, false) !== null) {
                 error('Esa combinación de docente, curso y asignatura ya está asignada.', 409);
             }
-
-            // asignacionParaTerna valida la existencia de cada llave foránea.
+            
             $nuevoId = asignacionParaTerna($pdo, $idDocente, $idCurso, $idAsignatura, true);
 
             $st = $pdo->prepare(sqlAsignacionEnriquecida() . ' WHERE aa.idAsignacion = ?');

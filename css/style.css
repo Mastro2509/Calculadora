@@ -64,12 +64,33 @@ label {
 }
 
 input[type="text"],
-input[type="number"] {
+input[type="number"],
+input[type="email"],
+input[type="tel"],
+input[type="time"],
+input[type="date"],
+input[type="search"],
+input[type="password"] {
     width: 100%;
     padding: 0.8rem;
     border: 1px solid var(--border-color);
     border-radius: 4px;
     font-size: 1rem;
+    font-family: inherit;
+    color: var(--text-color);
+    background-color: #fff;
+    /* Sin esto, Chrome le da a email/time una altura distinta a la de text. */
+    box-sizing: border-box;
+    line-height: 1.2;
+    height: 46px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 86, 179, 0.15);
 }
 
 /* Grid para las 4 notas */

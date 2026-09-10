@@ -102,8 +102,7 @@
                                 <option value="">Seleccione...</option>
                                 <option value="Mañana">Mañana</option>
                                 <option value="Tarde">Tarde</option>
-                                <option value="Noche">Noche</option>
-                                <option value="Única">Única</option>
+                                <option value="Mixta">Mixta</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -111,6 +110,7 @@
                             <input type="number" id="curso-estudiantes" min="0" placeholder="0" required>
                         </div>
                     </div>
+                    <div id="mensaje-curso"></div>
                     <div class="button-group">
                         <button type="submit" class="btn btn-success" id="btn-guardar-curso">Guardar Curso</button>
                         <button type="button" class="btn btn-secondary" id="btn-cancelar-curso" style="display:none;">Cancelar</button>
@@ -145,20 +145,31 @@
                     <input type="hidden" id="docente-id">
                     <div class="form-inline-grid">
                         <div class="form-group">
-                            <label for="docente-nombre">Nombre completo:</label>
-                            <input type="text" id="docente-nombre" placeholder="Ej. María Gómez" required>
+                            <label for="docente-nombres">Nombres:</label>
+                            <input type="text" id="docente-nombres" placeholder="Ej. María Fernanda" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="docente-apellidos">Apellidos:</label>
+                            <input type="text" id="docente-apellidos" placeholder="Ej. Gómez Ruiz" required>
                         </div>
                         <div class="form-group">
                             <label for="docente-documento">Documento:</label>
                             <input type="text" id="docente-documento" placeholder="Ej. 1088123456" required>
                         </div>
                         <div class="form-group">
-                            <label for="docente-email">Correo:</label>
-                            <input type="email" id="docente-email" placeholder="correo@institucion.edu.co">
+                            <label for="docente-contrato">Tipo de contrato:</label>
+                            <select id="docente-contrato" required>
+                                <option value="Tiempo Completo">Tiempo Completo</option>
+                                <option value="Medio Tiempo">Medio Tiempo</option>
+                            </select>
                         </div>
                         <div class="form-group">
-                            <label for="docente-telefono">Teléfono:</label>
-                            <input type="text" id="docente-telefono" placeholder="300 000 0000">
+                            <label for="docente-jornada">Jornada:</label>
+                            <select id="docente-jornada" required>
+                                <option value="Mañana">Mañana</option>
+                                <option value="Tarde">Tarde</option>
+                                <option value="Mixta">Mixta</option>
+                            </select>
                         </div>
                     </div>
                     <div class="form-group">
@@ -168,9 +179,17 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="docente-disponibilidad">Disponibilidad:</label>
-                        <textarea id="docente-disponibilidad" rows="2" placeholder="Ej. Lunes a Viernes 7:00 - 13:00"></textarea>
+                        <label>Días de trabajo:</label>
+                        <div class="checkbox-group" id="docente-dias">
+                            <label><input type="checkbox" value="Lunes"> Lunes</label>
+                            <label><input type="checkbox" value="Martes"> Martes</label>
+                            <label><input type="checkbox" value="Miercoles"> Miércoles</label>
+                            <label><input type="checkbox" value="Jueves"> Jueves</label>
+                            <label><input type="checkbox" value="Viernes"> Viernes</label>
+                            <label><input type="checkbox" value="Sabado"> Sábado</label>
+                        </div>
                     </div>
+                    <div id="mensaje-docente"></div>
                     <div class="button-group">
                         <button type="submit" class="btn btn-success" id="btn-guardar-docente">Guardar Docente</button>
                         <button type="button" class="btn btn-secondary" id="btn-cancelar-docente" style="display:none;">Cancelar</button>
@@ -186,7 +205,8 @@
                             <tr>
                                 <th>Nombre</th>
                                 <th>Documento</th>
-                                <th>Contacto</th>
+                                <th>Contrato</th>
+                                <th>Carga semanal</th>
                                 <th>Asignaturas</th>
                                 <th>Disponibilidad</th>
                                 <th>Acciones</th>
@@ -214,6 +234,7 @@
                             <input type="number" id="asignatura-intensidad" min="1" placeholder="Ej. 5" required>
                         </div>
                     </div>
+                    <div id="mensaje-asignatura"></div>
                     <div class="button-group">
                         <button type="submit" class="btn btn-success" id="btn-guardar-asignatura">Guardar Asignatura</button>
                         <button type="button" class="btn btn-secondary" id="btn-cancelar-asignatura" style="display:none;">Cancelar</button>
@@ -252,22 +273,18 @@
                         <div class="form-group">
                             <label for="horario-asignatura">Asignatura:</label>
                             <select id="horario-asignatura" required></select>
+                            <div id="aviso-asignaturas"></div>
                         </div>
                         <div class="form-group">
                             <label for="horario-docente">Docente:</label>
                             <select id="horario-docente" required></select>
+                            <div id="aviso-docentes"></div>
                         </div>
                         <div class="form-group">
+                            <!-- Las opciones se generan según los días que trabaja el docente. -->
                             <label for="horario-dia">Día:</label>
-                            <select id="horario-dia" required>
-                                <option value="">Seleccione...</option>
-                                <option>Lunes</option>
-                                <option>Martes</option>
-                                <option>Miércoles</option>
-                                <option>Jueves</option>
-                                <option>Viernes</option>
-                                <option>Sábado</option>
-                            </select>
+                            <select id="horario-dia" required></select>
+                            <div id="aviso-disponibilidad"></div>
                         </div>
                         <div class="form-group">
                             <label for="horario-inicio">Hora inicio:</label>
@@ -284,6 +301,19 @@
                         <button type="button" class="btn btn-secondary" id="btn-cancelar-horario" style="display:none;">Cancelar</button>
                     </div>
                 </form>
+            </section>
+
+            <!-- Ver el horario de un solo docente y su carga de horas -->
+            <section class="card">
+                <h2>Horario por docente</h2>
+                <div class="filtro-docente">
+                    <div class="form-group">
+                        <label for="filtro-horario-docente">Ver el horario de:</label>
+                        <select id="filtro-horario-docente"></select>
+                    </div>
+                    <button type="button" class="btn btn-secondary" id="btn-limpiar-filtro-docente">Ver todos</button>
+                </div>
+                <div id="panel-carga-docente"></div>
             </section>
 
             <section class="card">
@@ -304,7 +334,7 @@
             </section>
 
             <section class="card">
-                <h2>Clases programadas</h2>
+                <h2 id="titulo-tabla-horarios">Clases programadas</h2>
                 <div class="table-responsive">
                     <table>
                         <thead>
@@ -365,6 +395,7 @@
 
     </main>
 
+    <script src="js/api-client.js"></script>
     <script src="js/programacion.js"></script>
 </body>
 </html>

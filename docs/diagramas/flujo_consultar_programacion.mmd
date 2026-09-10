@@ -1,0 +1,29 @@
+graph LR
+    A["👤 Usuario<br/>Módulo Consultas"] -->|Selecciona tipo| B{Tipo de Consulta?}
+
+    B -->|Por Curso| C["📚 GET /api/consultas.php<br/>?tipo=curso&valor=1"]
+    B -->|Por Docente| D["👨‍🏫 GET /api/consultas.php<br/>?tipo=docente&valor=1"]
+    B -->|Por Asignatura| E["📖 GET /api/consultas.php<br/>?tipo=asignatura&valor=1"]
+    B -->|Por Jornada| F["🕐 GET /api/consultas.php<br/>?tipo=jornada&valor=Mañana"]
+
+    C -->|Envía| G["⚙️ Backend ejecuta<br/>SQL con JOINs"]
+    D -->|Envía| G
+    E -->|Envía| G
+    F -->|Envía| G
+
+    G -->|Consulta BD| H["💾 SELECT * FROM horario<br/>JOIN curso ON ...<br/>JOIN docente ON ...<br/>JOIN asignatura ON ..."]
+
+    H -->|Retorna| I["Datos enriquecidos:<br/>- Curso (grado, nombre)<br/>- Docente (nombres)<br/>- Asignatura (nombre)<br/>- Horario (día, hora)"]
+
+    I -->|Backend construye| J["200 OK<br/>JSON Response<br/>{ resultados: [...] }"]
+
+    J -->|Frontend recibe| K["🎨 Renderiza tabla<br/>con resultados"]
+
+    K -->|Muestra| L["📋 Tabla con<br/>todas las clases<br/>filtradas"]
+
+    L -->|Usuario puede| M["Ver detalles<br/>de programación"]
+
+    style A fill:#e3f2fd
+    style K fill:#e8f5e9
+    style L fill:#e8f5e9
+    style M fill:#e8f5e9

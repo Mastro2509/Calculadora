@@ -1,29 +1,7 @@
 <?php
-/* ==========================================================================
-   Recurso: docentes
-   --------------------------------------------------------------------------
-   GET    /docentes.php        -> lista
-   GET    /docentes.php?id=N   -> un docente
-   GET    /docentes.php?q=texto -> busca por nombres, apellidos o documento
-   GET    /docentes.php?jornada=Mañana&tipo_contrato=Medio+Tiempo -> filtros
-   POST   /docentes.php        -> crea
-   PUT    /docentes.php?id=N   -> actualiza
-   DELETE /docentes.php?id=N   -> elimina (cascada sobre asignaciones/horarios)
-
-   Campos:
-     documento      (texto, único)
-     nombres        (texto)
-     apellidos      (texto)
-     tipo_contrato  (Tiempo Completo | Medio Tiempo)
-     jornada        (Mañana | Tarde | Mixta)
-     dias_trabajo   (arreglo, p. ej. ["Lunes","Martes","Miercoles"])
-
-   En las respuestas, `dias_trabajo` se devuelve siempre como arreglo.
-   ========================================================================== */
 
 require __DIR__ . '/_bootstrap.php';
 
-/** Convierte la fila de BD a la forma expuesta por la API (dias_trabajo como arreglo). */
 function formatearDocente(array $row): array
 {
     $row['dias_trabajo'] = ($row['dias_trabajo'] ?? '') === ''

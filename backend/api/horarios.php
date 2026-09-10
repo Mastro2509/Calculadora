@@ -1,42 +1,9 @@
 <?php
-/* ==========================================================================
-   Recurso: horarios
-   --------------------------------------------------------------------------
-   Cada horario es una clase recurrente (día de la semana + franja horaria)
-   ligada a una asignación (docente + curso + asignatura).
-
-   GET    /horarios.php                    -> lista enriquecida (con nombres)
-   GET    /horarios.php?id=N               -> un horario
-   GET    /horarios.php?idCurso=N          -> filtra por curso
-   GET    /horarios.php?idDocente=N        -> filtra por docente
-   GET    /horarios.php?idAsignatura=N     -> filtra por asignatura
-   GET    /horarios.php?dia=Lunes          -> filtra por día
-   GET    /horarios.php?jornada=Mañana     -> filtra por jornada del curso
-   GET    /horarios.php?q=texto            -> busca por docente, curso o asignatura
-   POST   /horarios.php                    -> programa una clase
-   PUT    /horarios.php?id=N               -> reprograma una clase
-   DELETE /horarios.php?id=N               -> elimina una clase
-
-   Cuerpo de POST/PUT (dos formas admitidas):
-     A) { "idAsignacion": N, "dia_semana": "...", "hora_inicio": "HH:MM", "hora_fin": "HH:MM" }
-     B) { "idCurso": N, "idDocente": N, "idAsignatura": N, "dia_semana": "...",
-          "hora_inicio": "HH:MM", "hora_fin": "HH:MM" }
-        -> la asignación (terna) se busca o se crea automáticamente.
-
-   Detección de conflictos:
-     Antes de guardar se comprueba si el mismo docente o el mismo curso ya
-     tienen otra clase que se solape ese día. Si la hay, se responde 409 con
-     la lista de choques. Para forzar el guardado: añadir ?force=1.
-   ========================================================================== */
 
 require __DIR__ . '/_bootstrap.php';
 
 const ORDEN_DIAS_SQL = "FIELD(h.dia_semana,'Lunes','Martes','Miercoles','Jueves','Viernes','Sabado')";
 
-/**
- * Devuelve los horarios que chocan con la franja indicada.
- * Solapan dos rangos [i1,f1) y [i2,f2) si  i1 < f2  y  i2 < f1.
- */
 function conflictosDe(PDO $pdo, string $dia, string $ini, string $fin, int $idDocente, int $idCurso, int $ignorarId = 0): array
 {
     $sql = sqlHorarioEnriquecido() . "
@@ -61,11 +28,37 @@ function conflictosDe(PDO $pdo, string $dia, string $ini, string $fin, int $idDo
     return $filas;
 }
 
-/**
- * Resuelve la asignación a partir del cuerpo: usa idAsignacion si viene,
- * o busca/crea la terna idCurso + idDocente + idAsignatura.
- * Devuelve [idAsignacion, idDocente, idCurso].
- */
+function excesoDeCarga(PDO $pdo, int $idDocente, int $minutosNuevos, int $minutosPrevios = 0): ?array
+{
+    $carga = leerCargaDocente($pdo, $idDocente);
+    if ($carga === null) {
+        return null;
+    }
+
+    $minutosTope   = (int) round($carga['tope_horas'] * 60);
+    $minutosFinal  = $carga['minutos'] - $minutosPrevios + $minutosNuevos;
+
+    if ($minutosFinal <= $minutosTope) {
+        return null;
+    }
+
+    return [
+        'docente'           => $carga['docente'],
+        'tipo_contrato'     => $carga['tipo_contrato'],
+        'tope_horas'        => $carga['tope_horas'],
+        'horas_actuales'    => round(($carga['minutos'] - $minutosPrevios) / 60, 2),
+        'horas_de_la_clase' => round($minutosNuevos / 60, 2),
+        'horas_resultantes' => round($minutosFinal / 60, 2),
+        'horas_exceso'      => round(($minutosFinal - $minutosTope) / 60, 2),
+    ];
+}
+
+/** Minutos entre dos horas "HH:MM:SS". */
+function minutosEntre(string $ini, string $fin): int
+{
+    return (int) ((strtotime("1970-01-01 $fin UTC") - strtotime("1970-01-01 $ini UTC")) / 60);
+}
+
 function resolverAsignacion(PDO $pdo, array $d, ?array $actual = null): array
 {
     if (array_key_exists('idAsignacion', $d) && $d['idAsignacion'] !== null && $d['idAsignacion'] !== '') {
@@ -81,7 +74,6 @@ function resolverAsignacion(PDO $pdo, array $d, ?array $actual = null): array
 
     $tieneTerna = isset($d['idCurso'], $d['idDocente'], $d['idAsignatura']);
     if (!$tieneTerna && $actual !== null) {
-        // En un PUT sin datos de asignación, se conserva la actual.
         return [(int) $actual['idAsignacion'], (int) $actual['idDocente'], (int) $actual['idCurso']];
     }
     if (!$tieneTerna) {
@@ -101,7 +93,6 @@ ejecutar(function () use ($pdo) {
 
     switch (metodo()) {
 
-        /* ---------------------------------------------------------- GET */
         case 'GET':
             if ($id !== null) {
                 $st = $pdo->prepare(sqlHorarioEnriquecido() . ' WHERE h.idHorario = ?');
@@ -144,7 +135,6 @@ ejecutar(function () use ($pdo) {
             ok($st->fetchAll());
             break;
 
-        /* --------------------------------------------------- POST / PUT */
         case 'POST':
         case 'PUT':
         case 'PATCH':
@@ -193,6 +183,20 @@ ejecutar(function () use ($pdo) {
                     'conflictos' => $choques,
                 ]);
             }
+            $minutosPrevios = 0;
+            if (!$esCreacion && (int) $actual['idDocente'] === $idDocente) {
+                $minutosPrevios = minutosEntre($actual['hora_inicio'], $actual['hora_fin']);
+            }
+            $exceso = excesoDeCarga($pdo, $idDocente, minutosEntre($ini, $fin), $minutosPrevios);
+            if ($exceso && !$forzar) {
+                error(
+                    "{$exceso['docente']} ({$exceso['tipo_contrato']}) quedaría con " .
+                    "{$exceso['horas_resultantes']} h semanales y su tope es de {$exceso['tope_horas']} h. " .
+                    'Use ?force=1 para programar de todos modos.',
+                    409,
+                    ['exceso_carga' => $exceso]
+                );
+            }
 
             if ($esCreacion) {
                 $st = $pdo->prepare(
@@ -219,10 +223,14 @@ ejecutar(function () use ($pdo) {
                 $resultado['advertencia'] = 'Guardado con conflictos de horario.';
                 $resultado['conflictos']  = $choques;
             }
+            if ($exceso) {
+                $resultado['advertencia_carga'] = 'Guardado excediendo el tope de horas del docente.';
+                $resultado['exceso_carga']      = $exceso;
+            }
+            $resultado['carga_docente'] = leerCargaDocente($pdo, $idDocente);
             ok($resultado, $codigo);
             break;
 
-        /* ------------------------------------------------------- DELETE */
         case 'DELETE':
             if ($id === null) {
                 error('Falta el id del horario (?id=N).', 400);

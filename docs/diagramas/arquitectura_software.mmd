@@ -1,0 +1,49 @@
+graph TB
+    Usuario["👤 USUARIO<br/>Navegador Web"]
+
+    subgraph Frontend["🎨 CAPA DE PRESENTACIÓN"]
+        HTML["HTML5<br/>index.html<br/>programacion.html"]
+        CSS["CSS3<br/>style.css<br/>programacion.css"]
+        JS["JavaScript<br/>app.js<br/>programacion.js<br/>Estudiante.js"]
+    end
+
+    subgraph API["🔌 CAPA DE API"]
+        REST["REST API<br/>HTTP/HTTPS<br/>JSON"]
+    end
+
+    subgraph Backend["⚙️ CAPA DE LÓGICA DE NEGOCIO"]
+        PHP["PHP 7.4+<br/>PDO"]
+        Validacion["✓ Validación<br/>de datos"]
+        Calculo["📊 Cálculo de<br/>promedios"]
+        Conflictos["⚠️ Detección de<br/>conflictos"]
+        Consultas["🔍 Consultas<br/>avanzadas"]
+        Dashboard["📈 Agregación<br/>para dashboard"]
+    end
+
+    subgraph DB["💾 CAPA DE DATOS"]
+        MySQL["MySQL 5.7+<br/>MariaDB 10.3+"]
+        Tablas["6 Tablas<br/>Normalizadas<br/>- Estudiante<br/>- Curso<br/>- Docente<br/>- Asignatura<br/>- Asignacion<br/>- Horario"]
+    end
+
+    Usuario -->|Interactúa| Frontend
+    Frontend -->|Solicita| REST
+    HTML --> CSS
+    HTML --> JS
+    REST -->|PHP| Backend
+
+    PHP --> Validacion
+    PHP --> Calculo
+    PHP --> Conflictos
+    PHP --> Consultas
+    PHP --> Dashboard
+
+    Backend -->|SQL| DB
+    MySQL --> Tablas
+
+    DB -->|JSON| REST
+    REST -->|Renderiza| Frontend
+
+    style Frontend fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    style API fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    style Backend fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    style DB fill:#fff3e0,stroke:#e65100,stroke-width:2px

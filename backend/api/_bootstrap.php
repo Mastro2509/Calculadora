@@ -1,25 +1,9 @@
 <?php
-/* ==========================================================================
-   API REST - Bootstrap común
-   --------------------------------------------------------------------------
-   Cada endpoint (cursos.php, docentes.php, ...) hace `require _bootstrap.php`
-   como primera línea. Aquí se centraliza:
-     - Cabeceras JSON + CORS y respuesta al preflight OPTIONS.
-     - La conexión PDO ($pdo), reutilizando backend/conexion.php.
-     - Utilidades de entrada/salida (cuerpo JSON, id de recurso, respuestas).
-     - Validaciones comunes (campos obligatorios, ENUM, días, horas).
-     - Helpers de dominio compartidos (asignación docente/curso/asignatura).
-   Convención de respuesta:
-     éxito  -> { "status": "success", "data": ... }
-     error  -> { "status": "error",   "mensaje": "..." }
-   ========================================================================== */
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
-
-// Preflight CORS: no lleva cuerpo.
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     http_response_code(204);
     exit;
@@ -29,16 +13,16 @@ require __DIR__ . '/../conexion.php';   // define $pdo (PDO hacia gestion_notas)
 $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-/* ------------------------------------------------------------------ */
 /* Valores permitidos según backend/schema.sql                        */
-/* ------------------------------------------------------------------ */
 const JORNADAS_VALIDAS   = ['Mañana', 'Tarde', 'Mixta'];
 const TIPOS_CONTRATO     = ['Tiempo Completo', 'Medio Tiempo'];
 const DIAS_SEMANA        = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
 
-/* ------------------------------------------------------------------ */
+/* Tope de horas semanales de clase según el tipo de contrato del docente. */
+const HORAS_MAX_TIEMPO_COMPLETO = 40;
+const HORAS_MAX_MEDIO_TIEMPO    = 20;
+
 /* Entrada de la petición                                             */
-/* ------------------------------------------------------------------ */
 
 /** Método HTTP efectivo. Permite override con ?_method=PUT para clientes limitados. */
 function metodo(): string
@@ -98,9 +82,7 @@ function comoLike(string $texto): string
     return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $texto) . '%';
 }
 
-/* ------------------------------------------------------------------ */
 /* Salida                                                             */
-/* ------------------------------------------------------------------ */
 
 /** Emite una respuesta JSON cruda y termina la ejecución. */
 function responder($payload, int $codigo = 200): void
@@ -129,9 +111,7 @@ function metodoNoPermitido(array $permitidos): void
     error('Método no permitido. Métodos válidos: ' . implode(', ', $permitidos), 405);
 }
 
-/* ------------------------------------------------------------------ */
 /* Validaciones                                                       */
-/* ------------------------------------------------------------------ */
 
 /** Corta con 422 si falta algún campo obligatorio o viene vacío. */
 function exigir(array $datos, array $campos): void
@@ -180,7 +160,6 @@ function normalizarDiasTrabajo($valor): string
         exigirEnum($n, DIAS_SEMANA, 'dias_trabajo');
         $presentes[$n] = true;
     }
-    // Devolver en el orden natural de la semana.
     return implode(',', array_values(array_filter(DIAS_SEMANA, fn ($d) => isset($presentes[$d]))));
 }
 
@@ -199,9 +178,7 @@ function normalizarHora(string $h): string
     error("Hora inválida: '$h'. Use el formato HH:MM.", 422);
 }
 
-/* ------------------------------------------------------------------ */
 /* Ejecución con manejo de errores de base de datos                   */
-/* ------------------------------------------------------------------ */
 
 /** Ejecuta el manejador del endpoint capturando PDOException. */
 function ejecutar(callable $fn): void
@@ -209,7 +186,6 @@ function ejecutar(callable $fn): void
     try {
         $fn();
     } catch (PDOException $e) {
-        // SQLSTATE 23000 = violación de integridad (FK inexistente, UNIQUE duplicado).
         if ($e->getCode() === '23000') {
             error('Violación de integridad referencial. Verifique llaves foráneas o valores duplicados.', 409,
                   ['detalle' => $e->getMessage()]);
@@ -218,9 +194,7 @@ function ejecutar(callable $fn): void
     }
 }
 
-/* ------------------------------------------------------------------ */
 /* Helpers de dominio (compartidos por asignaciones.php y horarios.php)*/
-/* ------------------------------------------------------------------ */
 
 /** Corta con 422 si no existe una fila con esa PK en la tabla indicada. */
 function exigirExiste(PDO $pdo, string $tabla, string $columnaPk, int $id): void
@@ -232,10 +206,6 @@ function exigirExiste(PDO $pdo, string $tabla, string $columnaPk, int $id): void
     }
 }
 
-/**
- * Devuelve el idAsignacion para la terna docente/curso/asignatura.
- * Si no existe y $crear es true, la crea (validando antes las llaves foráneas).
- */
 function asignacionParaTerna(PDO $pdo, int $idDocente, int $idCurso, int $idAsignatura, bool $crear = true): ?int
 {
     $st = $pdo->prepare(
@@ -275,4 +245,65 @@ function sqlHorarioEnriquecido(): string
             JOIN curso       c ON c.idCurso       = aa.idCurso
             JOIN docente     d ON d.idDocente     = aa.idDocente
             JOIN asignatura  a ON a.idAsignatura  = aa.idAsignatura";
+}
+
+/* Carga horaria de los docentes (tabla `carga_docente`)               */
+
+/** Tope de horas semanales que admite un tipo de contrato. */
+function topeHoras(string $tipoContrato): int
+{
+    return $tipoContrato === 'Medio Tiempo'
+        ? HORAS_MAX_MEDIO_TIEMPO
+        : HORAS_MAX_TIEMPO_COMPLETO;
+}
+
+function leerCargaDocente(PDO $pdo, int $idDocente): ?array
+{
+    $st = $pdo->prepare(
+        "SELECT d.idDocente, d.documento, d.tipo_contrato, d.jornada, d.dias_trabajo,
+                CONCAT(d.nombres, ' ', d.apellidos) AS docente,
+                COALESCE(cd.minutos_programados, 0) AS minutos,
+                COALESCE(cd.clases_programadas, 0)  AS clases,
+                COALESCE(cd.tope_horas,
+                         CASE d.tipo_contrato WHEN 'Medio Tiempo' THEN 20 ELSE 40 END) AS tope_horas,
+                cd.actualizado
+         FROM docente d
+         LEFT JOIN carga_docente cd ON cd.idDocente = d.idDocente
+         WHERE d.idDocente = ?"
+    );
+    $st->execute([$idDocente]);
+    $fila = $st->fetch();
+    return $fila ? formatearCarga($fila) : null;
+}
+
+function formatearCarga(array $f, array $minutosPorDia = []): array
+{
+    $minutos = (int) $f['minutos'];
+    $tope    = (float) $f['tope_horas'];
+    $horas   = round($minutos / 60, 2);
+
+    $porDia = [];
+    foreach (DIAS_SEMANA as $dia) {
+        if (isset($minutosPorDia[$dia])) {
+            $porDia[$dia] = round($minutosPorDia[$dia] / 60, 2);
+        }
+    }
+
+    return [
+        'idDocente'         => (int) $f['idDocente'],
+        'docente'           => $f['docente'],
+        'documento'         => $f['documento'] ?? null,
+        'tipo_contrato'     => $f['tipo_contrato'],
+        'jornada'           => $f['jornada'] ?? null,
+        'dias_trabajo'      => ($f['dias_trabajo'] ?? '') === '' ? [] : explode(',', $f['dias_trabajo']),
+        'minutos'           => $minutos,
+        'horas'             => $horas,
+        'tope_horas'        => $tope,
+        'horas_disponibles' => round($tope - $horas, 2),
+        'porcentaje'        => $tope > 0 ? (int) round(($horas / $tope) * 100) : 0,
+        'clases'            => (int) $f['clases'],
+        'excede'            => $horas > $tope,
+        'horas_por_dia'     => $porDia,
+        'actualizado'       => $f['actualizado'] ?? null,
+    ];
 }

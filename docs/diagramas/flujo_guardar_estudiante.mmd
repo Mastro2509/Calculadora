@@ -1,0 +1,39 @@
+sequenceDiagram
+    participant U as 👤 Usuario
+    participant F as 🎨 Frontend
+    participant B as ⚙️ Backend
+    participant D as 💾 BD
+
+    U->>F: 1. Ingresa nombre y 4 notas
+    F->>F: 2. Click "Calcular Promedio"
+    F->>F: 3. Valida notas (0-5)
+    F->>F: 4. Calcula promedio
+    F->>F: 5. Asigna resultado cualitativo
+    F->>U: ✓ Muestra resultado
+
+    U->>F: 6. Click "Guardar Registro"
+    F->>B: 7. POST /backend/guardar.php
+    F->>F: (Envía: nombre, nota1-4, promedio, resultado)
+
+    B->>B: 8. Valida datos recibidos
+    B->>B: 9. Verifica tipos de datos
+    B->>D: 10. INSERT INTO estudiante
+    D->>D: 11. Guardar en BD
+    D->>B: ✓ Registro guardado (id=N)
+
+    B->>F: 12. Response 200 + JSON
+    F->>F: 13. Limpia formulario
+    F->>B: 14. GET /backend/consultar.php
+    B->>D: 15. SELECT * FROM estudiante
+    D->>B: 16. Devuelve todos los estudiantes
+    B->>F: 17. JSON con estudiantes
+
+    F->>F: 18. Renderiza tabla dinámicamente
+    F->>U: ✓ Muestra estudiante en tabla
+    U->>U: 19. Vuelve a llenar para nuevo registro
+
+    rect rgb(200, 150, 255)
+    Note over F,D: Validaciones en ambos lados
+    F->>F: Cliente: tipo, rango, requerido
+    B->>B: Servidor: prepared statements, tipos
+    end
