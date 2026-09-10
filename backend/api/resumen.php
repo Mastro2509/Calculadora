@@ -1,12 +1,4 @@
 <?php
-/* ==========================================================================
-   Recurso: resumen  (solo lectura)
-   --------------------------------------------------------------------------
-   GET /resumen.php  -> datos agregados para el panel/dashboard:
-       - totales por entidad
-       - distribución por jornada (cursos, estudiantes, clases)
-       - lista de conflictos de horario en toda la programación
-   ========================================================================== */
 
 require __DIR__ . '/_bootstrap.php';
 
@@ -16,7 +8,6 @@ if (metodo() !== 'GET') {
 
 ejecutar(function () use ($pdo) {
 
-    /* ----------------------------------------------------- Totales */
     $totales = [
         'cursos'                => (int) $pdo->query('SELECT COUNT(*) FROM curso')->fetchColumn(),
         'docentes'              => (int) $pdo->query('SELECT COUNT(*) FROM docente')->fetchColumn(),
@@ -27,7 +18,6 @@ ejecutar(function () use ($pdo) {
         'estudiantes_registrados' => (int) $pdo->query('SELECT COUNT(*) FROM estudiante')->fetchColumn(),
     ];
 
-    /* -------------------------------------- Distribución por jornada */
     $porJornada = [];
     foreach (JORNADAS_VALIDAS as $j) {
         $c = $pdo->prepare('SELECT COUNT(*), COALESCE(SUM(numero_estudiantes),0) FROM curso WHERE jornada = ?');
@@ -51,7 +41,6 @@ ejecutar(function () use ($pdo) {
         ];
     }
 
-    /* ------------------------------------------------- Conflictos */
     $horarios = $pdo->query(sqlHorarioEnriquecido() . ' ORDER BY h.dia_semana, h.hora_inicio')->fetchAll();
     $conflictos = [];
     $n = count($horarios);

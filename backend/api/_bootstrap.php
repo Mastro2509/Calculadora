@@ -9,22 +9,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     exit;
 }
 
-require __DIR__ . '/../conexion.php';   // define $pdo (PDO hacia gestion_notas)
+require __DIR__ . '/../conexion.php';
 $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-/* Valores permitidos según backend/schema.sql                        */
 const JORNADAS_VALIDAS   = ['Mañana', 'Tarde', 'Mixta'];
 const TIPOS_CONTRATO     = ['Tiempo Completo', 'Medio Tiempo'];
 const DIAS_SEMANA        = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
 
-/* Tope de horas semanales de clase según el tipo de contrato del docente. */
 const HORAS_MAX_TIEMPO_COMPLETO = 40;
 const HORAS_MAX_MEDIO_TIEMPO    = 20;
 
-/* Entrada de la petición                                             */
 
-/** Método HTTP efectivo. Permite override con ?_method=PUT para clientes limitados. */
 function metodo(): string
 {
     $m = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
@@ -34,7 +30,6 @@ function metodo(): string
     return $m;
 }
 
-/** Cuerpo JSON de la petición como arreglo asociativo (se lee una sola vez). */
 function cuerpo(): array
 {
     static $datos = null;
@@ -48,7 +43,6 @@ function cuerpo(): array
     return $datos;
 }
 
-/** Identificador del recurso: ?id=N  o  recurso.php/N (PATH_INFO). */
 function idRecurso(): ?int
 {
     if (isset($_GET['id']) && is_numeric($_GET['id'])) {
@@ -60,13 +54,11 @@ function idRecurso(): ?int
     return null;
 }
 
-/** Parámetro de query opcional como entero (o null). */
 function queryInt(string $clave): ?int
 {
     return isset($_GET[$clave]) && is_numeric($_GET[$clave]) ? (int) $_GET[$clave] : null;
 }
 
-/** Parámetro de query opcional como texto ya recortado (o null si viene vacío). */
 function queryTexto(string $clave): ?string
 {
     if (!isset($_GET[$clave])) {
@@ -76,15 +68,11 @@ function queryTexto(string $clave): ?string
     return $v === '' ? null : $v;
 }
 
-/** Convierte un texto de búsqueda en patrón LIKE ("%texto%"), escapando comodines. */
 function comoLike(string $texto): string
 {
     return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $texto) . '%';
 }
 
-/* Salida                                                             */
-
-/** Emite una respuesta JSON cruda y termina la ejecución. */
 function responder($payload, int $codigo = 200): void
 {
     http_response_code($codigo);
@@ -92,28 +80,22 @@ function responder($payload, int $codigo = 200): void
     exit;
 }
 
-/** Respuesta de éxito con envoltura estándar. */
 function ok($data = null, int $codigo = 200): void
 {
     responder(['status' => 'success', 'data' => $data], $codigo);
 }
 
-/** Respuesta de error con envoltura estándar. Termina la ejecución. */
 function error(string $mensaje, int $codigo = 400, array $extra = []): void
 {
     responder(array_merge(['status' => 'error', 'mensaje' => $mensaje], $extra), $codigo);
 }
 
-/** Endpoint que no soporta el método recibido. */
 function metodoNoPermitido(array $permitidos): void
 {
     header('Allow: ' . implode(', ', $permitidos));
     error('Método no permitido. Métodos válidos: ' . implode(', ', $permitidos), 405);
 }
 
-/* Validaciones                                                       */
-
-/** Corta con 422 si falta algún campo obligatorio o viene vacío. */
 function exigir(array $datos, array $campos): void
 {
     $faltan = [];
@@ -128,7 +110,6 @@ function exigir(array $datos, array $campos): void
     }
 }
 
-/** Corta con 422 si el valor no está dentro de la lista permitida (ENUM). */
 function exigirEnum($valor, array $permitidos, string $campo): void
 {
     if (!in_array($valor, $permitidos, true)) {
@@ -137,7 +118,6 @@ function exigirEnum($valor, array $permitidos, string $campo): void
     }
 }
 
-/** Normaliza el nombre de un día a la forma del ENUM del schema (sin tildes). */
 function normalizarDia(string $dia): string
 {
     $sinTilde = strtr($dia, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
@@ -145,7 +125,6 @@ function normalizarDia(string $dia): string
     return ucfirst(mb_strtolower($sinTilde, 'UTF-8'));
 }
 
-/** Convierte "SET" de días (arreglo o cadena) a cadena ordenada "Lunes,Martes,...". */
 function normalizarDiasTrabajo($valor): string
 {
     if (is_string($valor)) {
@@ -163,7 +142,6 @@ function normalizarDiasTrabajo($valor): string
     return implode(',', array_values(array_filter(DIAS_SEMANA, fn ($d) => isset($presentes[$d]))));
 }
 
-/** Normaliza una hora a "HH:MM:SS". Corta con 422 si el formato es inválido. */
 function normalizarHora(string $h): string
 {
     $h = trim($h);
@@ -178,9 +156,6 @@ function normalizarHora(string $h): string
     error("Hora inválida: '$h'. Use el formato HH:MM.", 422);
 }
 
-/* Ejecución con manejo de errores de base de datos                   */
-
-/** Ejecuta el manejador del endpoint capturando PDOException. */
 function ejecutar(callable $fn): void
 {
     try {
@@ -194,9 +169,6 @@ function ejecutar(callable $fn): void
     }
 }
 
-/* Helpers de dominio (compartidos por asignaciones.php y horarios.php)*/
-
-/** Corta con 422 si no existe una fila con esa PK en la tabla indicada. */
 function exigirExiste(PDO $pdo, string $tabla, string $columnaPk, int $id): void
 {
     $st = $pdo->prepare("SELECT 1 FROM $tabla WHERE $columnaPk = ?");
@@ -232,7 +204,6 @@ function asignacionParaTerna(PDO $pdo, int $idDocente, int $idCurso, int $idAsig
     return (int) $pdo->lastInsertId();
 }
 
-/** SELECT enriquecido de horarios (con nombres de curso, docente y asignatura). */
 function sqlHorarioEnriquecido(): string
 {
     return "SELECT h.idHorario, h.idAsignacion, h.dia_semana, h.hora_inicio, h.hora_fin,
@@ -247,9 +218,6 @@ function sqlHorarioEnriquecido(): string
             JOIN asignatura  a ON a.idAsignatura  = aa.idAsignatura";
 }
 
-/* Carga horaria de los docentes (tabla `carga_docente`)               */
-
-/** Tope de horas semanales que admite un tipo de contrato. */
 function topeHoras(string $tipoContrato): int
 {
     return $tipoContrato === 'Medio Tiempo'

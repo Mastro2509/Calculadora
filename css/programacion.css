@@ -5,7 +5,6 @@
     --muted-color: #6c757d;
 }
 
-/* Navegación por pestañas ----------------------------------------------- */
 .nav-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -37,7 +36,6 @@
     border-color: var(--primary-color);
 }
 
-/* Paneles -------------------------------------------------------------- */
 .panel {
     display: none;
 }
@@ -46,7 +44,6 @@
     display: block;
 }
 
-/* Botón para volver / enlaces de navegación -------------------------- */
 .btn-nav {
     display: inline-block;
     margin-top: 1rem;
@@ -64,7 +61,6 @@
     font-size: 0.85rem;
 }
 
-/* Dashboard --------------------------------------------------------------- */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -100,7 +96,6 @@
     color: var(--danger-color);
 }
 
-/* Mensajes / alertas ---------------------------------------------------- */
 .alert {
     padding: 1rem;
     border-radius: 6px;
@@ -119,7 +114,6 @@
     font-style: italic;
 }
 
-/* Etiquetas de estado -------------------------------------------------- */
 .badge {
     display: inline-block;
     padding: 0.25rem 0.6rem;
@@ -134,12 +128,10 @@
 .badge-noche { background-color: var(--primary-color); }
 .badge-unica { background-color: var(--success-color); }
 
-/* Fila de tabla con conflicto ---------------------------------------- */
 tr.row-conflict td {
     background-color: #fff3f3;
 }
 
-/* Formularios en línea ---------------------------------------------------- */
 .form-inline-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -159,8 +151,6 @@ select {
     height: 46px;
 }
 
-/* Los formularios en línea alinean sus campos por la base, para que
-   etiquetas de una o dos líneas no desalineen los inputs. */
 .form-inline-grid .form-group {
     display: flex;
     flex-direction: column;
@@ -202,9 +192,6 @@ textarea {
     width: auto;
 }
 
-/* Asignatura que el docente ya dicta: no se puede desmarcar hasta que se
-   eliminen sus clases, así que se marca explícitamente en vez de dejar la
-   casilla muerta sin explicación. */
 .checkbox-group label.chk-bloqueada {
     color: var(--muted-color);
     cursor: help;
@@ -214,7 +201,6 @@ textarea {
     font-style: italic;
 }
 
-/* Consultas ---------------------------------------------------------- */
 .query-controls {
     display: flex;
     flex-wrap: wrap;
@@ -283,7 +269,6 @@ textarea {
     border-color: var(--primary-color);
 }
 
-/* --- Vistas Semana / Día --- */
 .cal-semana {
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -296,9 +281,6 @@ textarea {
     border-bottom: 1px solid var(--border-color);
 }
 
-/* La cabecera y el cuerpo comparten el mismo ancho de columna (--cal-ancho-col)
-   para que los días nunca se desalineen de sus columnas, ni siquiera cuando el
-   calendario tiene scroll horizontal en pantallas estrechas. */
 .cal-semana {
     --cal-gutter: 58px;
     --cal-ancho-col: minmax(112px, 1fr);
@@ -365,8 +347,6 @@ textarea {
     overflow: auto;
 }
 
-/* El gutter de horas es la primera columna de la rejilla del cuerpo y se
-   mantiene visible al desplazar en horizontal. */
 .cal-gutter {
     grid-column: 1;
     position: sticky;
@@ -433,7 +413,6 @@ textarea {
 
 .cal-evento .ev-titulo {
     font-weight: 600;
-    /* El nombre de la asignatura nunca se parte a media palabra. */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -447,7 +426,6 @@ textarea {
     white-space: nowrap;
 }
 
-/* Bloques cortos: solo cabe una línea, se oculta el detalle. */
 .cal-evento.compacto {
     flex-direction: row;
     align-items: baseline;
@@ -464,7 +442,6 @@ textarea {
     outline-offset: -2px;
 }
 
-/* --- Vista Mes --- */
 .cal-mes {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -547,8 +524,6 @@ textarea {
     .cal-chip {
         font-size: 0.6rem;
     }
-    /* En móvil las columnas se estrechan y el calendario se desplaza en
-       horizontal; el gutter de horas permanece fijo. */
     .cal-semana {
         --cal-gutter: 46px;
         --cal-ancho-col: 88px;
@@ -558,8 +533,6 @@ textarea {
     }
 }
 
-
-/* Filtro "ver el horario de un docente" ------------------------------- */
 .filtro-docente {
     display: flex;
     flex-wrap: wrap;
@@ -574,7 +547,6 @@ textarea {
     margin-bottom: 0;
 }
 
-/* Barra de progreso (tabla de docentes) ------------------------------- */
 .carga-barra {
     min-width: 130px;
 }
@@ -613,7 +585,6 @@ textarea {
 .carga-texto.alta   { color: var(--warning-color); }
 .carga-texto.excede { color: var(--danger-color); }
 
-/* Tarjeta de detalle de un docente ------------------------------------ */
 .carga-detalle {
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -650,7 +621,6 @@ textarea {
 .carga-cifra.alta   .carga-horas { color: var(--warning-color); }
 .carga-cifra.excede .carga-horas { color: var(--danger-color); }
 
-/* Desglose por dia ----------------------------------------------------- */
 .carga-dias {
     display: flex;
     flex-wrap: wrap;

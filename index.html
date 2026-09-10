@@ -14,7 +14,7 @@
     </header>
 
     <main class="container">
-        <!-- Sección del Formulario -->
+
         <section class="card">
             <h2>Registrar Estudiante</h2>
             <form id="form-notas">
@@ -49,7 +49,6 @@
             </form>
         </section>
 
-        <!-- Área para mostrar resultados -->
         <section class="card result-card" id="area-resultados" style="display: none;">
             <h2>Resultados del Cálculo</h2>
             <div class="result-content">
@@ -59,11 +58,9 @@
             </div>
         </section>
 
-        <!-- Sección para consultar registros -->
         <section class="card">
             <h2>Registros Almacenados</h2>
             <div class="table-responsive">
-                <!-- En tu index.html, donde quieras mostrar los registros -->
                 <table border="1">
                     <thead>
                         <tr>
@@ -77,9 +74,7 @@
                             <th>Acciones</th>
                         </tr>
                     </thead>
-                    <!-- ¡Este ID es la clave para que JS encuentre dónde pintar los datos! -->
                     <tbody id="tabla-estudiantes">
-                        <!-- JS inyectará las filas (<tr>) aquí dinámicamente -->
                     </tbody>
                 </table>
             </div>

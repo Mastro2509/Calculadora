@@ -1,4 +1,3 @@
-/* Variables de color para mantener consistencia visual */
 :root {
     --primary-color: #0056b3;
     --success-color: #28a745;
@@ -36,7 +35,6 @@ body {
     padding: 0 1rem;
 }
 
-/* Tarjetas (Cards) para organizar la información */
 .card {
     background-color: var(--card-bg);
     border-radius: 8px;
@@ -52,7 +50,6 @@ body {
     padding-bottom: 0.5rem;
 }
 
-/* Formularios */
 .form-group {
     margin-bottom: 1.2rem;
 }
@@ -79,7 +76,6 @@ input[type="password"] {
     font-family: inherit;
     color: var(--text-color);
     background-color: #fff;
-    /* Sin esto, Chrome le da a email/time una altura distinta a la de text. */
     box-sizing: border-box;
     line-height: 1.2;
     height: 46px;
@@ -93,14 +89,12 @@ textarea:focus {
     box-shadow: 0 0 0 2px rgba(0, 86, 179, 0.15);
 }
 
-/* Grid para las 4 notas */
 .notas-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 1rem;
 }
 
-/* Botones */
 .button-group {
     display: flex;
     gap: 1rem;
@@ -130,7 +124,6 @@ textarea:focus {
 .btn-primary { background-color: var(--primary-color); }
 .btn-success { background-color: var(--success-color); }
 
-/* Enlace con apariencia de botón (navegación entre páginas) */
 .btn-nav {
     display: inline-block;
     margin-top: 1rem;
@@ -138,7 +131,6 @@ textarea:focus {
     text-align: center;
 }
 
-/* Área de resultados */
 .result-card {
     background-color: #e9ecef;
     border-left: 5px solid var(--primary-color);
@@ -149,7 +141,6 @@ textarea:focus {
     margin-bottom: 0.5rem;
 }
 
-/* Tabla de registros */
 .table-responsive {
     overflow-x: auto;
 }
@@ -171,7 +162,6 @@ th {
     color: white;
 }
 
-/* Responsive design extra para móviles */
 @media (max-width: 600px) {
     .button-group {
         flex-direction: column;

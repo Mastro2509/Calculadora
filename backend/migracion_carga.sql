@@ -1,16 +1,5 @@
--- ============================================================================
--- Migración: tabla de carga horaria de docentes
--- ----------------------------------------------------------------------------
--- Aplica la tabla `carga_docente` (y su mantenimiento automático) sobre una
--- base de datos gestion_notas que ya tiene datos, sin recrear nada.
---
--- Uso desde la consola de XAMPP:
---     mysql -u root gestion_notas < backend/migracion_carga.sql
--- o pegando el contenido en la pestaña SQL de phpMyAdmin.
--- ============================================================================
 USE gestion_notas;
 
--- Se eliminan primero por si la migración se ejecuta más de una vez.
 DROP TRIGGER IF EXISTS carga_docente_alta;
 DROP TRIGGER IF EXISTS carga_docente_cambio;
 DROP TRIGGER IF EXISTS carga_horario_alta;
@@ -107,7 +96,6 @@ END$$
 
 DELIMITER ;
 
--- Sincroniza la tabla con lo que ya existe en `horario`.
 INSERT INTO carga_docente (idDocente, tope_horas, minutos_programados, clases_programadas)
 SELECT d.idDocente,
        CASE d.tipo_contrato WHEN 'Medio Tiempo' THEN 20 ELSE 40 END,

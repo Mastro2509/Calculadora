@@ -1,9 +1,8 @@
 <?php
-// backend/guardar.php
+
 header('Content-Type: application/json');
 require 'conexion.php';
 
-// Leer los datos JSON que envía app.js
 $datos = json_decode(file_get_contents("php://input"), true);
 
 if ($datos) {
@@ -13,7 +12,6 @@ if ($datos) {
         
         $stmt = $pdo->prepare($sql);
         
-        // Vincular los parámetros
         $stmt->bindParam(':nombre_Estudiante', $datos['nombre']);
         $stmt->bindParam(':nota_Uno', $datos['nota1']);
         $stmt->bindParam(':nota_Dos', $datos['nota2']);

@@ -1,6 +1,5 @@
 class Estudiante {
     constructor(nombre, nota1, nota2, nota3, nota4) {
-        // Atributos solicitados por la guía
         this.nombre = nombre;
         this.nota1 = parseFloat(nota1);
         this.nota2 = parseFloat(nota2);
@@ -10,21 +9,18 @@ class Estudiante {
         this.resultadoCualitativo = "";
     }
 
-    // Método 1: Calcular promedio
     calcularPromedio() {
         const suma = this.nota1 + this.nota2 + this.nota3 + this.nota4;
         this.promedio = suma / 4;
-        // Retornamos el promedio redondeado a un decimal
+
         return parseFloat(this.promedio.toFixed(1));
     }
 
-    // Método 2: Determinar aprobación
     determinarAprobacion() {
-        // Se aprueba a partir de 3.0
+
         return this.promedio >= 3.0 ? "Aprobado" : "Reprobado";
     }
 
-    // Método 3: Determinar rendimiento cualitativo
     determinarRendimientoCualitativo() {
         if (this.promedio >= 0.0 && this.promedio <= 2.9) {
             this.resultadoCualitativo = "Rendimiento insuficiente";

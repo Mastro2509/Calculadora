@@ -1,14 +1,12 @@
 <?php
-// backend/actualizar.php
+
 header('Content-Type: application/json');
 require 'conexion.php';
 
 $datos = json_decode(file_get_contents("php://input"), true);
 
-// Verificamos que lleguen los datos y que el ID exista
 if ($datos && isset($datos['id'])) {
     try {
-        // La consulta con sus 8 parámetros exactos (incluyendo idEstudiante)
         $sql = "UPDATE estudiante SET 
                 nombre_Estudiante = :nombre, 
                 nota_Uno = :nota1, 
@@ -21,7 +19,6 @@ if ($datos && isset($datos['id'])) {
         
         $stmt = $pdo->prepare($sql);
         
-        // Los 8 bindParam vinculados EXACTAMENTE a los nombres de arriba
         $stmt->bindParam(':nombre', $datos['nombre']);
         $stmt->bindParam(':nota1', $datos['nota1']);
         $stmt->bindParam(':nota2', $datos['nota2']);

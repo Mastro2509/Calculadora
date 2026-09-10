@@ -65,8 +65,8 @@ CREATE TABLE horario (
 
 CREATE TABLE carga_docente (
     idDocente INT PRIMARY KEY,
-    tope_horas DECIMAL(5,2) NOT NULL,          -- 40 o 20 segun tipo_contrato
-    minutos_programados INT NOT NULL DEFAULT 0, -- suma de duraciones en `horario`
+    tope_horas DECIMAL(5,2) NOT NULL,     
+    minutos_programados INT NOT NULL DEFAULT 0,
     horas_programadas DECIMAL(5,2) AS (minutos_programados / 60) STORED,
     clases_programadas INT NOT NULL DEFAULT 0,
     excede BOOLEAN AS (minutos_programados > tope_horas * 60) STORED,

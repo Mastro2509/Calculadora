@@ -53,7 +53,6 @@ function excesoDeCarga(PDO $pdo, int $idDocente, int $minutosNuevos, int $minuto
     ];
 }
 
-/** Minutos entre dos horas "HH:MM:SS". */
 function minutosEntre(string $ini, string $fin): int
 {
     return (int) ((strtotime("1970-01-01 $fin UTC") - strtotime("1970-01-01 $ini UTC")) / 60);

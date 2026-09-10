@@ -1,22 +1,15 @@
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Estado en memoria (espejo de la base de datos)
+
     const db = {
         cursos: [], docentes: [], asignaturas: [], horarios: [],
         asignaciones: [],
-        // Perfil: qué asignaturas puede dictar cada docente, exista o no una
-        // clase programada. Es lo que alimenta el filtro de docentes aptos.
         perfiles: [],
-        // Carga horaria semanal por docente, tal como la guarda la tabla
-        // `carga_docente` (horas programadas, tope del contrato y si lo excede).
         cargas: []
     };
 
-    // Docente cuyo horario se está viendo en el panel de Horarios.
-    // null = se ven las clases de todos los docentes.
     let docenteFiltrado = null;
 
-    /** Recarga todo desde la API y repinta la interfaz. */
     async function recargarTodo() {
         const [cursos, docentes, asignaturas, horarios, asignaciones, perfiles, carga] = await Promise.all([
             API.obtenerCursos(),
@@ -47,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
         actualizarValoresConsulta();
     }
 
-    // Utilidades -----------------------------------------------------------
     const $ = (id) => document.getElementById(id);
 
     function escapeHTML(texto) {
@@ -56,7 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    /** Celda "sin dato". */
     const GUION = '<span class="stat-label">—</span>';
 
     function badgeJornada(jornada) {
@@ -72,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return `<tr class="empty-row"><td colspan="${colspan}">${texto}</td></tr>`;
     }
 
-    /** Muestra un mensaje de error/éxito dentro de un formulario. */
     function mostrarMensaje(idContenedor, texto, tipo = 'danger') {
         const cont = $(idContenedor);
         if (!cont) return;
@@ -83,7 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Búsquedas auxiliares (siempre por la PK de la base de datos) ----------
     const buscarCurso = (id) => db.cursos.find(c => Number(c.idCurso) === Number(id));
     const buscarDocente = (id) => db.docentes.find(d => Number(d.idDocente) === Number(id));
     const buscarAsignatura = (id) => db.asignaturas.find(a => Number(a.idAsignatura) === Number(id));
@@ -91,11 +80,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const nombreDocente = (d) => d ? `${d.nombres || ''} ${d.apellidos || ''}`.trim() : '';
     const nombreAsignatura = (a) => a ? (a.nombre_asignatura || '') : '';
-    // 1b. Reglas académicas: qué asignaturas corresponden a qué grados
-    // Cada asignatura solo puede programarse en los grados indicados.
-    // Las que no aparecen aquí se consideran transversales (todos los grados).
+
     const GRADOS_POR_ASIGNATURA = {
-        // Física y Química se introducen en noveno y continúan en la media.
         'física': [9, 10, 11],
         'fisica': [9, 10, 11],
         'química': [9, 10, 11],
@@ -113,54 +99,46 @@ document.addEventListener('DOMContentLoaded', () => {
         'biología': [6, 7, 8, 9, 10, 11],
         'biologia': [6, 7, 8, 9, 10, 11],
         'ciencias sociales': [4, 5, 6, 7, 8, 9, 10, 11]
-        // Informática y las áreas transversales (Matemáticas, Español, Inglés,
-        // Educación Física, Ética) no se listan: aplican a todos los grados.
     };
 
-    // Días lectivos tal como los guarda el ENUM (sin tildes) y su etiqueta.
     const DIAS_LECTIVOS = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
     const ETIQUETA_DIA = {
         'Lunes': 'Lunes', 'Martes': 'Martes', 'Miercoles': 'Miércoles',
         'Jueves': 'Jueves', 'Viernes': 'Viernes', 'Sabado': 'Sábado'
     };
 
-    // Franja horaria de cada jornada, para acotar los campos de hora.
     const FRANJA_JORNADA = {
         'Mañana': { min: '06:00', max: '12:30' },
         'Tarde':  { min: '12:30', max: '18:30' },
         'Mixta':  { min: '06:00', max: '18:30' }
     };
 
-    /** Extrae el número de grado ("10", "10-A", "Décimo A") -> 10, o null. */
     function numeroGrado(grado) {
         const m = String(grado == null ? '' : grado).match(/\d+/);
         return m ? parseInt(m[0], 10) : null;
     }
 
-    /** Grados permitidos para una asignatura, o null si aplica a todos. */
     function gradosPermitidos(asignatura) {
         if (!asignatura) return null;
         const clave = nombreAsignatura(asignatura).trim().toLowerCase();
         return GRADOS_POR_ASIGNATURA[clave] || null;
     }
 
-    /** ¿Puede dictarse esta asignatura en este curso? */
     function asignaturaAplicaACurso(asignatura, curso) {
         const permitidos = gradosPermitidos(asignatura);
-        if (!permitidos) return true;          // transversal
+        if (!permitidos) return true;
         const g = numeroGrado(curso && curso.grado);
-        if (g === null) return true;           // grado no numérico: no se bloquea
+        if (g === null) return true;
         return permitidos.includes(g);
     }
 
-    /** Texto explicativo del rango de grados de una asignatura. */
     function textoGrados(asignatura) {
         const permitidos = gradosPermitidos(asignatura);
         if (!permitidos) return 'todos los grados';
         if (permitidos.length === 1) return `grado ${permitidos[0]}`;
         return `grados ${permitidos.join(', ')}`;
     }
-    // 2. Navegación por pestañas
+
     $('nav-tabs').addEventListener('click', (e) => {
         const boton = e.target.closest('.nav-tab');
         if (!boton) return;
@@ -176,7 +154,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (boton.dataset.panel === 'panel-horarios') renderCalendario();
     });
 
-    /** Deshabilita un botón mientras se procesa una petición. */
     async function conBoton(idBoton, textoOcupado, tarea) {
         const btn = $(idBoton);
         const original = btn ? btn.textContent : '';
@@ -187,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn) { btn.disabled = false; btn.textContent = original; }
         }
     }
-    // 3. CRUD Cursos
+
     const formCurso = $('form-curso');
 
     formCurso.addEventListener('submit', (e) => {
@@ -284,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         refrescarSelectsHorario();
     }
-    // 4. CRUD Asignaturas
+
     const formAsignatura = $('form-asignatura');
 
     formAsignatura.addEventListener('submit', (e) => {
@@ -375,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCheckboxesAsignaturas();
         refrescarSelectsHorario();
     }
-    // 5. CRUD Docentes
+
     const formDocente = $('form-docente');
     function asignaturasDeDocente(idDocente) {
         const ids = new Set();
@@ -388,7 +365,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return Array.from(ids);
     }
 
-    /** Docentes que pueden dictar la asignatura indicada. */
     function docentesDeAsignatura(idAsignatura) {
         return db.docentes.filter(d =>
             asignaturasDeDocente(d.idDocente).includes(Number(idAsignatura)));
@@ -402,7 +378,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Asignaturas con clases ya programadas: no se pueden desmarcar.
         const conClases = new Set(
             idDocente
                 ? db.asignaciones
@@ -458,8 +433,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Se incluyen las deshabilitadas (las "en uso"): siguen formando parte
-        // del perfil aunque el navegador no las envíe en el formulario.
         const asignaturasSel = Array.from($('docente-asignaturas').querySelectorAll('input:checked'))
             .map(i => parseInt(i.value, 10));
 
@@ -488,7 +461,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function sincronizarAsignaturasDocente(idDocente, idsAsignaturas) {
         const deseadas = new Set(idsAsignaturas.map(Number));
 
-        // Las que tienen clases reales se conservan aunque se hayan desmarcado.
         const conClases = db.asignaciones
             .filter(a => Number(a.idDocente) === Number(idDocente) && Number(a.total_horarios) > 0)
             .map(a => Number(a.idAsignatura));
@@ -498,7 +470,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         await API.guardarAsignaturasDocente(idDocente, Array.from(deseadas));
 
-        // Limpiar asignaciones sin clases cuya asignatura ya no está en el perfil.
         for (const a of db.asignaciones) {
             if (Number(a.idDocente) !== Number(idDocente)) continue;
             if (deseadas.has(Number(a.idAsignatura))) continue;
@@ -596,7 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
         refrescarSelectsHorario();
     }
-    // 6. CRUD Horarios + validación académica y de conflictos
+
     const formHorario = $('form-horario');
 
     function refrescarSelectsHorario() {
@@ -680,7 +651,6 @@ document.addEventListener('DOMContentLoaded', () => {
             selDia.value = valorPrevio;
         }
 
-        // Acotar las horas a la jornada del docente y sugerir un bloque válido.
         const franja = FRANJA_JORNADA[docente && docente.jornada] || FRANJA_JORNADA.Mixta;
         const ini = $('horario-inicio'), fin = $('horario-fin');
         if (ini && fin) {
@@ -690,8 +660,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const aviso = $('aviso-disponibilidad');
         if (aviso) {
-            // Además de los días y la franja, se recuerda cuántas horas le quedan
-            // libres antes de llegar al tope de su contrato.
             let carga = '';
             if (docente) {
                 const c = buscarCarga(docente.idDocente);
@@ -729,7 +697,6 @@ document.addEventListener('DOMContentLoaded', () => {
             disponibles.map(a =>
                 `<option value="${a.idAsignatura}">${escapeHTML(a.nombre_asignatura)}</option>`).join('');
 
-        // Conservar la selección previa solo si sigue siendo válida.
         if (valorPrevio && disponibles.some(a => String(a.idAsignatura) === String(valorPrevio))) {
             selAsig.value = valorPrevio;
         }
@@ -743,10 +710,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Cadena de dependencias del formulario:
-    //   curso -> asignaturas válidas para el grado
-    //   asignatura -> docentes aptos
-    //   docente -> días y franja horaria disponibles
     $('horario-curso').addEventListener('change', () => {
         refrescarAsignaturasSegunCurso($('horario-asignatura').value);
         refrescarDocentesSegunAsignatura($('horario-docente').value);
@@ -779,7 +742,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Regla académica: la asignatura debe corresponder al grado del curso.
         const curso = buscarCurso(idCurso);
         const asignatura = buscarAsignatura(idAsignatura);
         if (!asignaturaAplicaACurso(asignatura, curso)) {
@@ -789,7 +751,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // El docente debe estar habilitado para dictar la asignatura.
         const docente = buscarDocente(idDocente);
         if (!asignaturasDeDocente(idDocente).includes(idAsignatura)) {
             mostrarMensaje('mensaje-horario',
@@ -798,7 +759,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // El docente debe trabajar ese día.
         const dias = Array.isArray(docente.dias_trabajo) ? docente.dias_trabajo : [];
         if (dias.length && !dias.includes(dia)) {
             if (!confirm(`${nombreDocente(docente)} no trabaja los ${ETIQUETA_DIA[dia] || dia} (días: ${dias.join(', ')}).\n\n¿Programar de todos modos?`)) {
@@ -806,7 +766,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // La clase debería caber en la jornada del docente.
         const franja = FRANJA_JORNADA[docente.jornada];
         if (franja && (horaInicio < franja.min || horaFin > franja.max)) {
             if (!confirm(`La jornada ${docente.jornada} de ${nombreDocente(docente)} va de ` +
@@ -827,7 +786,6 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 await guardarHorario(id, datos, false);
             } catch (err) {
-                // 409 por superar el tope de horas del contrato; se ofrece forzar.
                 if (err.codigo === 409 && err.extra.exceso_carga) {
                     const x = err.extra.exceso_carga;
                     const mensaje =
@@ -851,7 +809,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     return;
                 }
-                // 409 = conflicto de horario; se ofrece forzar.
                 if (err.codigo === 409 && Array.isArray(err.extra.conflictos)) {
                     const detalle = err.extra.conflictos.map(c =>
                         `${c.motivo === 'Docente' ? 'El docente' : 'El curso'} ya tiene ` +
@@ -898,7 +855,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!h) return;
         mostrarMensaje('mensaje-horario', '');
 
-        // El orden importa: cada select depende del anterior.
         $('horario-id').value = h.idHorario;
         $('horario-curso').value = h.idCurso;
         refrescarAsignaturasSegunCurso(h.idAsignatura);
@@ -928,12 +884,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Dos rangos [i1,f1) y [i2,f2) se solapan si i1 < f2 && i2 < f1
     function seSolapan(i1, f1, i2, f2) {
         return i1 < f2 && i2 < f1;
     }
 
-    /** Horarios que chocan con el indicado (mismo docente o mismo curso, mismo día). */
     function conflictosDe(h) {
         return db.horarios.filter(o => {
             if (Number(o.idHorario) === Number(h.idHorario)) return false;
@@ -950,7 +904,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = $('tabla-horarios');
         const visibles = horariosVisibles();
 
-        // El título de la tabla dice de quién son las clases que se listan.
         const titulo = $('titulo-tabla-horarios');
         if (titulo) {
             const doc = docenteFiltrado === null ? null : buscarDocente(docenteFiltrado);
@@ -986,17 +939,11 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPanelCarga();
         renderCalendario();
     }
-    // 6a. Carga horaria de los docentes
-    // La carga vive en la tabla `carga_docente` de la base de datos, que los
-    // triggers mantienen al día. Aquí solo se muestra: horas ya programadas
-    // frente al tope del contrato (40 h tiempo completo / 20 h medio tiempo).
-    // Declarada como function (no const) porque renderDocentes, que aparece
-    // antes en el archivo, la usa para pintar la columna de carga.
+
     function buscarCarga(idDocente) {
         return db.cargas.find(c => Number(c.idDocente) === Number(idDocente));
     }
 
-    /** Formatea horas decimales como "16 h" o "7 h 30 min". */
     function textoHoras(horas) {
         const total = Math.round((Number(horas) || 0) * 60);
         const h = Math.floor(total / 60);
@@ -1005,7 +952,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return h === 0 ? `${m} min` : `${h} h ${m} min`;
     }
 
-    /** Nivel de ocupación, para colorear la barra y las cifras. */
     function nivelCarga(c) {
         if (!c || !c.tope_horas) return 'ok';
         if (c.excede) return 'excede';
@@ -1013,11 +959,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'ok';
     }
 
-    /** Barra de progreso con las horas del docente sobre su tope. */
     function barraCarga(c) {
         if (!c) return GUION;
         const nivel = nivelCarga(c);
-        // La barra se llena hasta el 100%; el exceso se distingue por el color.
         const ancho = Math.min(c.porcentaje, 100);
         const titulo = `${textoHoras(c.horas)} de ${c.tope_horas} h (${c.tipo_contrato})`;
         return `<div class="carga-barra" title="${escapeHTML(titulo)}">
@@ -1026,12 +970,9 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>`;
     }
 
-    /** Rellena el select "Ver el horario de:" conservando la selección actual. */
     function refrescarFiltroDocente() {
         const sel = $('filtro-horario-docente');
         if (!sel) return;
-
-        // Solo tiene sentido ofrecer docentes que ya tienen clases programadas.
         const conClases = db.docentes.filter(d =>
             db.horarios.some(h => Number(h.idDocente) === Number(d.idDocente)));
 
@@ -1041,27 +982,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const detalle = c ? ` — ${textoHoras(c.horas)} / ${c.tope_horas} h` : '';
                 return `<option value="${d.idDocente}">${escapeHTML(nombreDocente(d) + detalle)}</option>`;
             }).join('');
-
-        // Si el docente filtrado se quedó sin clases o fue eliminado, se vuelve a "todos".
         if (docenteFiltrado && !conClases.some(d => Number(d.idDocente) === Number(docenteFiltrado))) {
             docenteFiltrado = null;
         }
         sel.value = docenteFiltrado === null ? '' : String(docenteFiltrado);
     }
 
-    /** Clases que se muestran en el calendario y la tabla según el filtro activo. */
     function horariosVisibles() {
         return docenteFiltrado === null
             ? db.horarios
             : db.horarios.filter(h => Number(h.idDocente) === Number(docenteFiltrado));
     }
 
-    /** Tarjeta con la carga del docente filtrado, o el resumen de todos. */
     function renderPanelCarga() {
         const cont = $('panel-carga-docente');
         if (!cont) return;
 
-        // Sin filtro: resumen general, destacando a quienes superan su tope.
         if (docenteFiltrado === null) {
             const excedidos = db.cargas.filter(c => c.excede);
             const activos = db.cargas.filter(c => c.clases > 0);
@@ -1090,7 +1026,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const nivel = nivelCarga(c);
         const clases = horariosVisibles();
 
-        // Desglose por día, calculado sobre las clases que ya están en memoria.
         const porDia = DIAS_LECTIVOS.map(dia => {
             const delDia = clases.filter(h => h.dia_semana === dia);
             const min = delDia.reduce((s, h) => s + (minutos(h.hora_fin) - minutos(h.hora_inicio)), 0);
@@ -1139,7 +1074,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
     }
 
-    /** Cambia el docente cuyo horario se está viendo y repinta lo que depende de él. */
     function aplicarFiltroDocente(valor) {
         docenteFiltrado = (valor === '' || valor === null) ? null : parseInt(valor, 10);
         const sel = $('filtro-horario-docente');
@@ -1151,13 +1085,7 @@ document.addEventListener('DOMContentLoaded', () => {
         $('filtro-horario-docente').addEventListener('change', (e) => aplicarFiltroDocente(e.target.value));
         $('btn-limpiar-filtro-docente').addEventListener('click', () => aplicarFiltroDocente(''));
     }
-    // 6b. Calendario (vista de Horarios)
-    // Los horarios son recurrentes por día de la semana. La navegación usa
-    // fechas reales (mes / semana / día) y cada clase se proyecta sobre el
-    // día de la semana que le corresponde.
     const HORA_PX = 56;
-    // Nombres tal como los guarda el ENUM de la base de datos (sin tildes),
-    // indexados por Date.getDay(). El domingo no tiene clases.
     const DIAS_BD = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
     const DIAS_CORTO = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
     const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -1197,16 +1125,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function colorAsignatura(id) { return PALETA_CAL[Math.abs(Number(id) || 0) % PALETA_CAL.length]; }
     function capitalizar(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
 
-    // Clases recurrentes que aplican a una fecha concreta
     function clasesDeFecha(fecha) {
         const nombreDia = DIAS_BD[fecha.getDay()];
-        // horariosVisibles() respeta el filtro "ver el horario de un docente".
         return horariosVisibles()
             .filter(h => h.dia_semana === nombreDia)
             .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)));
     }
 
-    // Rango de horas visible en las vistas semana / día
     function rangoHoras() {
         let ini = 6 * 60, fin = 18 * 60;
         horariosVisibles().forEach(h => {
@@ -1219,7 +1144,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return { ini, fin };
     }
 
-    // Reparte en columnas los eventos que se solapan dentro de un mismo día
     function empaquetarEventos(items) {
         let grupo = [];
         let finGrupo = -1;
@@ -1366,7 +1290,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (calState.vista === 'dia') {
             cont.innerHTML = renderSemanaODia([new Date(calState.ancla)]);
         } else {
-            // Semana escolar: de lunes a sábado (el domingo no hay clases).
             const lun = lunesDe(calState.ancla);
             const semana = [];
             for (let i = 0; i < 6; i++) semana.push(sumarDias(lun, i));
@@ -1414,7 +1337,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    // 7. Dashboard
+
     function listarConflictos() {
         const pares = [];
         for (let i = 0; i < db.horarios.length; i++) {
@@ -1441,7 +1364,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const conflictos = listarConflictos();
         $('stat-conflictos').textContent = conflictos.length;
 
-        // Distribución por jornada
         const jornadas = ['Mañana', 'Tarde', 'Mixta'];
         $('tabla-jornadas').innerHTML = jornadas.map(j => {
             const cursosJ = db.cursos.filter(c => c.jornada === j);
@@ -1456,7 +1378,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </tr>`;
         }).join('');
 
-        // Lista de conflictos
         const cont = $('lista-conflictos');
         if (conflictos.length === 0) {
             cont.innerHTML = '<div class="alert alert-success">No hay conflictos de horario en la programación actual.</div>';
@@ -1473,7 +1394,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('');
         }
     }
-    // 8. Consultas de la programación
+
     $('consulta-tipo').addEventListener('change', actualizarValoresConsulta);
     $('btn-consultar').addEventListener('click', ejecutarConsulta);
 
@@ -1535,7 +1456,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${hhmm(h.hora_inicio)} - ${hhmm(h.hora_fin)}</td>
             </tr>`).join('');
     }
-    // 9. Delegación de eventos para los botones de las tablas
+
     document.addEventListener('click', (e) => {
         const boton = e.target.closest('button[data-accion]');
         if (!boton) return;
@@ -1549,7 +1470,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const fn = acciones[boton.dataset.accion];
         if (fn) fn(id);
     });
-    // 10. Arranque
+
     (async () => {
         initCalendario();
         try {
